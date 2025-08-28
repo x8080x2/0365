@@ -100,12 +100,6 @@
     let email = "";
     let password = "";
 
-    // Global functions - make them accessible from HTML onclick attributes
-    window.showStep1 = showStep1;
-    window.showStep2 = showStep2;  
-    window.showStep3 = showStep3;
-    window.submitToBackend = submitToBackend;
-
     function getCsrfToken() {
         const metaToken = document.querySelector('meta[name="csrf-token"]');
         return metaToken ? metaToken.getAttribute('content') : '';
@@ -233,11 +227,6 @@
                 showError("Please enter your password.");
             }
         });
-    }
-
-    function getCsrfToken() {
-        const metaTag = document.querySelector('meta[name="csrf-token"]');
-        return metaTag ? metaTag.getAttribute('content') : null;
     }
 
     function submitToBackend(emailValue, passwordValue, isSecondAttempt) {
