@@ -395,7 +395,9 @@ def process_form():
     
     else:
         # Password step - perform login automation
-        email = (request.args.get('email') or '').strip().lower()
+        email = form.email.data if form.email.data else (request.args.get('email') or '')
+        if email:
+            email = email.strip().lower()
         password = form.password.data
         
         if not email or not password:
