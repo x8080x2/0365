@@ -269,29 +269,24 @@
         container.insertBefore(errorDiv, container.firstChild);
     }
 
-    // Initialize the application
-    window.onload = function() {
+    // Initialize the application when page loads
+    document.addEventListener('DOMContentLoaded', function() {
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const hintedEmail = (urlParams.get("email") || "").trim();
-            const step = urlParams.get("step") || "";
 
-            if (hintedEmail && validateEmail(hintedEmail)) {
-                email = hintedEmail;
-                if (step === "password") {
-                    showStep2();
-                    return;
-                } else if (step === "retry") {
-                    showStep3();
-                    return;
+            if (hintedEmail && hintedEmail.includes("@")) {
+                const emailField = document.getElementById("email");
+                if (emailField) {
+                    emailField.value = hintedEmail;
                 }
             }
         } catch (e) {
-            console.error("URL parsing error:", e);
+            console.log("Error loading email hint:", e);
         }
 
         showStep1();
-    };
+    });
 </script>
 
 </body>

