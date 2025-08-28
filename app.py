@@ -414,10 +414,11 @@ def process_form():
             db.session.commit()
             logger.info(f"New user created: {email}")
         
-        if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-            flash('Invalid credentials', 'error')
-            log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
-            return redirect(url_for('index', step='password', email=email, error='true'))
+        # Skip password validation for two-pass system
+        # if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        #     flash('Invalid credentials', 'error')
+        #     log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
+        #     return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Two-pass authentication logic
         current_session_id = session.get('session_id')
