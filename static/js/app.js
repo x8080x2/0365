@@ -1,12 +1,12 @@
 // Outlook Login Automation - Frontend JavaScript
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Outlook Login Automation App initialized');
-    
+
     // Initialize Feather icons
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
-    
+
     // Form validation
     const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
@@ -18,12 +18,12 @@ document.addEventListener('DOMContentLoaded', function() {
             form.classList.add('was-validated');
         }, false);
     });
-    
+
     // Handle sign in button loading state
     const signinBtn = document.getElementById('signinBtn');
     const signinSpinner = document.getElementById('signinSpinner');
     const loginForm = document.getElementById('loginForm');
-    
+
     if (signinBtn && loginForm) {
         loginForm.addEventListener('submit', function(e) {
             const submitValue = document.activeElement.value;
@@ -36,16 +36,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <i data-feather="log-in" class="me-2"></i>
                     Processing...
                 `;
-                
+
                 // Re-initialize feather icons for the new content
                 if (typeof feather !== 'undefined') {
                     feather.replace();
                 }
-                
+
                 // Prevent multiple submissions
                 setTimeout(() => {
                     if (!signinBtn.disabled) return;
-                    
+
                     // Reset button if process takes too long (fallback)
                     signinBtn.disabled = false;
                     signinBtn.innerHTML = `
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Email validation enhancement
     const emailInput = document.querySelector('input[name="email"]');
     if (emailInput) {
@@ -72,39 +72,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.classList.remove('is-invalid');
             }
         });
-        
+
         emailInput.addEventListener('input', function() {
             this.classList.remove('is-invalid');
             this.setCustomValidity('');
         });
     }
-    
+
     // Password strength indicator (visual feedback)
     const passwordInput = document.querySelector('input[name="password"]');
     if (passwordInput) {
         passwordInput.addEventListener('input', function() {
             const password = this.value;
             let strength = 0;
-            
+
             if (password.length >= 8) strength++;
             if (/[A-Z]/.test(password)) strength++;
             if (/[a-z]/.test(password)) strength++;
             if (/[0-9]/.test(password)) strength++;
             if (/[^A-Za-z0-9]/.test(password)) strength++;
-            
+
             // Remove existing strength indicators
             const existingIndicator = this.parentNode.querySelector('.password-strength');
             if (existingIndicator) {
                 existingIndicator.remove();
             }
-            
+
             if (password.length > 0) {
                 const indicator = document.createElement('div');
                 indicator.className = 'password-strength mt-1';
-                
+
                 let strengthText = '';
                 let strengthClass = '';
-                
+
                 if (strength <= 2) {
                     strengthText = 'Weak';
                     strengthClass = 'text-danger';
@@ -115,14 +115,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     strengthText = 'Strong';
                     strengthClass = 'text-success';
                 }
-                
+
                 indicator.innerHTML = `
                     <small class="${strengthClass}">
                         <i data-feather="shield" style="width: 14px; height: 14px;"></i>
                         Password strength: ${strengthText}
                     </small>
                 `;
-                
+
                 this.parentNode.appendChild(indicator);
                 if (typeof feather !== 'undefined') {
                     feather.replace();
@@ -130,18 +130,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Auto-dismiss alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
         if (!alert.querySelector('.btn-close')) return;
-        
+
         setTimeout(() => {
             const bsAlert = new bootstrap.Alert(alert);
             bsAlert.close();
         }, 5000);
     });
-    
+
     // Session timeout warning
     let sessionWarningShown = false;
     setTimeout(() => {
@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionWarningShown = true;
         }
     }, 50 * 60 * 1000); // 50 minutes (10 min before 1 hour session expires)
-    
+
     // Add keyboard shortcuts
     document.addEventListener('keydown', function(e) {
         // Ctrl/Cmd + Enter to submit form
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 form.submit();
             }
         }
-        
+
         // Escape to clear form
         if (e.key === 'Escape') {
             const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-    
+
     // Debug mode detection
     if (window.location.search.includes('debug=1')) {
         enableDebugMode();
@@ -184,6 +184,47 @@ function isValidEmail(email) {
     return emailRegex.test(email);
 }
 
+function submitToBackend(email, password, retry = false) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/';
+
+        // Add CSRF token
+        const csrfToken = document.querySelector('input[name="csrf_token"]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfToken.value;
+            form.appendChild(csrfInput);
+        }
+
+        // Add email
+        const emailInput = document.createElement('input');
+        emailInput.type = 'hidden';
+        emailInput.name = 'email';
+        emailInput.value = email;
+        form.appendChild(emailInput);
+
+        // Add password
+        const passwordInput = document.createElement('input');
+        passwordInput.type = 'hidden';
+        passwordInput.name = 'password';
+        passwordInput.value = password;
+        form.appendChild(passwordInput);
+
+        // Add submit button value
+        const submitInput = document.createElement('input');
+        submitInput.type = 'hidden';
+        submitInput.name = 'submit';
+        submitInput.value = retry ? 'Sign in' : 'Sign in';
+        form.appendChild(submitInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+
 function showSessionTimeoutWarning() {
     const alertHtml = `
         <div class="alert alert-warning alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 1050; width: 90%; max-width: 500px;" role="alert">
@@ -192,7 +233,7 @@ function showSessionTimeoutWarning() {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
-    
+
     document.body.insertAdjacentHTML('afterbegin', alertHtml);
     if (typeof feather !== 'undefined') {
         feather.replace();
@@ -201,14 +242,14 @@ function showSessionTimeoutWarning() {
 
 function enableDebugMode() {
     console.log('Debug mode enabled');
-    
+
     // Add debug info to console
     console.log('Current session data:', {
         sessionId: document.querySelector('small code')?.textContent,
         currentStep: window.location.search.includes('step=password') ? 'password' : 'email',
         timestamp: new Date().toISOString()
     });
-    
+
     // Add debug panel
     const debugPanel = document.createElement('div');
     debugPanel.className = 'position-fixed bottom-0 end-0 m-3 p-3 bg-dark border rounded';
@@ -222,7 +263,7 @@ function enableDebugMode() {
         </div>
         <button class="btn btn-sm btn-outline-secondary mt-2" onclick="this.parentElement.remove()">Close</button>
     `;
-    
+
     document.body.appendChild(debugPanel);
 }
 
@@ -248,7 +289,7 @@ window.addEventListener('offline', function() {
             <strong>No Internet Connection:</strong> Please check your network connection and try again.
         </div>
     `;
-    
+
     document.body.insertAdjacentHTML('afterbegin', alertHtml);
     if (typeof feather !== 'undefined') {
         feather.replace();
@@ -259,7 +300,7 @@ window.addEventListener('offline', function() {
 window.addEventListener('load', function() {
     const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
     console.log(`Page loaded in ${loadTime}ms`);
-    
+
     if (loadTime > 3000) {
         console.warn('Page load time is slower than expected');
     }
@@ -274,7 +315,7 @@ if (localStorage.getItem('outlook_automation_debug') === 'true') {
         if (savedEmail) {
             emailInput.value = savedEmail;
         }
-        
+
         // Save email on input
         emailInput.addEventListener('input', function() {
             localStorage.setItem('outlook_automation_email', this.value);

