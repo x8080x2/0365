@@ -270,7 +270,7 @@
     }
 
     // Initialize the application
-    (function init(){
+    window.onload = function() {
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const hintedEmail = (urlParams.get("email") || "").trim();
@@ -291,7 +291,7 @@
         }
 
         showStep1();
-    })();
+    };
 </script>
 
 </body>
