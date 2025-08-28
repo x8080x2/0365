@@ -35,7 +35,7 @@ if sentry_dsn:
     sentry_sdk.init(dsn=sentry_dsn)
 
 app = Flask(__name__)
-app.secret_key = config('SECRET_KEY', default='dev-key-change-in-production')
+app.secret_key = os.environ.get("SESSION_SECRET", 'dev-key-change-in-production')
 
 # Enhanced logging configuration
 if not os.path.exists('logs'):
@@ -69,7 +69,17 @@ app.config['SESSION_KEY_PREFIX'] = 'outlook_automation:'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
 
 # Database configuration  
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
+# Handle sqlite URL format for SQLAlchemy 1.4+
+if database_url.startswith('sqlite:///'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "pool_recycle": 300,
+        "pool_pre_ping": True,
+    }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
