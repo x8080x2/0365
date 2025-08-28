@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 # Use os.environ instead for simplicity
 def config(key, default=None):
     return os.environ.get(key, default)
-from flask_wtf import FlaskForm  # CSRFProtect removed
+from flask_wtf import FlaskForm, CSRFProtect
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email
 import bcrypt
@@ -75,7 +75,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize extensions
 Session(app)
 db = SQLAlchemy(app)
-# csrf = CSRFProtect(app)  # Disabled to allow immediate credential capture
+csrf = CSRFProtect(app)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
