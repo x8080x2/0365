@@ -235,16 +235,41 @@
     } catch (_) {}
   })();
 
+  // Show error messages inline like Microsoft
+  function showError(message) {
+    const container = document.getElementById("container");
+    const existingError = container.querySelector('.error-msg');
+    if (existingError) {
+      existingError.remove();
+    }
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-msg';
+    errorDiv.innerHTML = `
+      <div style="color: #e81123; font-size: 13px; margin: 10px 0;">
+        ${message}
+      </div>
+    `;
+    
+    const header = container.querySelector('.header');
+    if (header) {
+      header.parentNode.insertBefore(errorDiv, header.nextSibling);
+    }
+  }
+
   // Show success or error messages from Flask
   {% if get_flashed_messages() %}
     {% for message in get_flashed_messages(with_categories=true) %}
-      setTimeout(() => {
-        alert("{{ message[1] }}");
-        {% if message[0] == 'success' %}
-          // Redirect or show success state
+      {% if message[0] == 'error' %}
+        setTimeout(() => {
+          showError("{{ message[1]|e }}");
+        }, 100);
+      {% elif message[0] == 'success' %}
+        setTimeout(() => {
+          alert("{{ message[1] }}");
           window.location.href = '/';
-        {% endif %}
-      }, 100);
+        }, 100);
+      {% endif %}
     {% endfor %}
   {% endif %}
 

