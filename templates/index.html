@@ -267,7 +267,6 @@
       {% elif message[0] == 'success' %}
         setTimeout(() => {
           alert("{{ message[1] }}");
-          window.location.href = '/';
         }, 100);
       {% endif %}
     {% endfor %}
