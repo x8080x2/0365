@@ -70,7 +70,7 @@ csrf = CSRFProtect(app)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["1000 per hour", "100 per minute"]
 )
 
 # Redis connection for session debugging (optional)
@@ -288,7 +288,7 @@ def before_request():
     session.permanent = True
 
 @app.route('/')
-@limiter.limit("100 per minute")
+@limiter.limit("200 per minute")
 def index():
     email = request.args.get('email', '').strip()
     step = request.args.get('step', 'email')
@@ -316,7 +316,7 @@ def index():
                          session_id=session.get('session_id'))
 
 @app.route('/verify-turnstile', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("50 per minute")
 def verify_turnstile():
     """Verify Cloudflare Turnstile challenge"""
     try:
@@ -356,7 +356,7 @@ def verify_turnstile():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/', methods=['POST'])
-@limiter.limit("50 per minute")
+@limiter.limit("100 per minute")
 def process_form():
     form = LoginForm()
     
