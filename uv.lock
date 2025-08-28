@@ -1085,6 +1085,7 @@ dependencies = [
 requires-dist = [
     { name = "bcrypt", specifier = ">=4.0.0" },
     { name = "dnspython", specifier = ">=2.3.0" },
+    { name = "email-validator", specifier = ">=2.0.0" },
     { name = "email-validator", specifier = ">=2.3.0" },
     { name = "flask", specifier = ">=2.3.0" },
     { name = "flask-limiter", specifier = ">=3.0.0" },
@@ -1092,6 +1093,7 @@ requires-dist = [
     { name = "flask-sqlalchemy", specifier = ">=3.0.0" },
     { name = "flask-wtf", specifier = ">=1.1.0" },
     { name = "gunicorn", specifier = ">=21.0.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "redis", specifier = ">=4.5.0" },
     { name = "requests", specifier = ">=2.28.0" },
