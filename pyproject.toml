@@ -1,26 +1,25 @@
+
 [project]
-name = "repl-nix-workspace"
+name = "outlook-automation"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.11"
+description = "Flask application for Office 365 automation"
+requires-python = ">=3.8"
 dependencies = [
-    "dnspython>=2.7.0",
-    "email-validator>=2.3.0",
-    "flask-wtf>=1.2.2",
-    "flask==3.0.3",
-    "flask-sqlalchemy>=3.1.1",
-    "gunicorn==22.0.0",
-    "psycopg2-binary>=2.9.10",
-    "pyjwt==2.8.0",
-    "python-decouple==3.8",
-    "requests>=2.32.5",
-    "selenium>=4.35.0",
-    "wtforms>=3.2.1",
-    "flask-limiter>=3.12",
-    "sentry-sdk>=2.35.1",
-    "flask-session>=0.8.0",
-    "pillow==10.4.0",
-    "bcrypt>=4.3.0",
-    "redis>=6.4.0",
-    "pytest==8.2.2",
+    "flask>=2.3.0",
+    "flask-session>=0.5.0",
+    "flask-sqlalchemy>=3.0.0",
+    "flask-wtf>=1.1.0",
+    "flask-limiter>=3.0.0",
+    "wtforms>=3.0.0",
+    "bcrypt>=4.0.0",
+    "selenium>=4.10.0",
+    "requests>=2.28.0",
+    "redis>=4.5.0",
+    "dnspython>=2.3.0",
+    "gunicorn>=21.0.0",
+    "sentry-sdk>=1.25.0"
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
