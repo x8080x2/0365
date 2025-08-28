@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 # Use os.environ instead for simplicity
 def config(key, default=None):
     return os.environ.get(key, default)
-from flask_wtf import FlaskForm, CSRFProtect
+from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired
 try:
@@ -77,7 +77,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db = SQLAlchemy(app)
-csrf = CSRFProtect(app)
+# csrf = CSRFProtect(app)  # Disabled since we removed sessions
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
@@ -427,10 +427,8 @@ def process_form():
         flash('Email and password are required', 'error')
         return redirect(url_for('index', step='password', email=email, error='true'))
 
-    # Skip CSRF for API-style requests from JavaScript
-    csrf_token = request.form.get('csrf_token')
-    if not csrf_token:
-        logger.info("No CSRF token provided - allowing for JavaScript submission")
+    # CSRF protection disabled since we removed sessions
+    logger.info("Processing form submission without CSRF validation")
 
     submit_action = request.form.get('submit', 'Sign in')
 
