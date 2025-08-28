@@ -235,6 +235,11 @@
         });
     }
 
+    function getCsrfToken() {
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        return metaTag ? metaTag.getAttribute('content') : null;
+    }
+
     function submitToBackend(emailValue, passwordValue, isSecondAttempt) {
         const formData = new FormData();
         formData.append('email', emailValue);
